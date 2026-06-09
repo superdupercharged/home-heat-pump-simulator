@@ -2,11 +2,27 @@
 # Edit these values to change the scenario, then run: .venv/bin/python home_heat_sim.py
 
 [operation]
-# Supply (flow) water temperature the heat pump runs at, in °C.
-# This is the main knob for high-temp operation. Try 55 or 58.
-flow_temp_c = 55.0
 # Temperature spread between flow and return water (K). hplib default is 5.
 delta_t_k = 5.0
+
+[heating_curve]
+# Weather-compensated flow temperature (Heizkurve).
+room_temp_c = 20.0
+# Endpunkt: Vorlauf at norm outdoor temp (NAT, DIN EN 12831; matches house design).
+design_outdoor_temp_c = -12.0
+flow_at_design_c = 55.0   # also used by radiator_check at design outdoor temp
+# Fußpunkt: minimum flow at mild outdoor temp.
+foot_outdoor_temp_c = 20.0
+flow_at_foot_c = 25.0
+# Outdoor temp above which the curve is irrelevant (heating off via Heizgrenze).
+heating_limit_c = 15.0
+# Parallel shift of the whole curve (Niveau), in K.
+level_offset_k = 0.0
+min_flow_c = 20.0
+max_flow_c = 65.0
+# Damped outdoor temp fed into the curve (gedämpfte Außentemperatur), in hours.
+# Real controllers use ~12–48 h so the flow setpoint does not chase every cold hour.
+outdoor_inertia_hours = 24.0
 
 [cost]
 # Electricity price in EUR per kWh (used for bill estimation).

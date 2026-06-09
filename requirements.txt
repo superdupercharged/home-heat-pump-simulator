@@ -2,3 +2,4 @@ hplib
 numpy
 pandas
 matplotlib
+openpyxl

@@ -1,0 +1,221 @@
+# House configuration for THIS house (from docs/raumbuch_heat_pump.md).
+#
+# Untergeschoss -> [[ground_floor.room]] (loses heat down into the basement)
+# Obergeschoss  -> [[first_floor.room]]  (loses heat up into the attic)
+#
+# exterior_wall_area_m2 = Außenwandlänge * ceiling_height (2.4 m).
+# window_area_m2        = Fensterfläche from the Raumbuch.
+# floor_area_m2         = Raumgröße (length * width).
+#
+# NOTE: all heater_nominal_power_w values are given as output @ 55 °C flow
+# (heater_rating_flow_c = 55). The Kinderzimmer 1/2/3 and Schlafzimmer values
+# are real (1258 W @ 55 °C; KiZi2 interpolated by length 1.3/1.6). The rest are
+# ESTIMATES converted from rough ΔT50 guesses via ((52.5 - T_room)/50)^1.3, so
+# refine them later against real radiator datasheets. Not yet used in the energy
+# calc (reserved for a future radiator-adequacy check).
+#
+# Use this file instead of the default via the HOUSE_CONFIG env var, e.g.:
+#   HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python run_simulation.py
+
+[building]
+footprint_length_m = 13.72
+footprint_width_m  = 9.95
+ceiling_height_m   = 2.4
+# Heated floor area per level from the Raumbuch ≈ 85.7 m² (UG) / 85.8 m² (OG).
+
+[envelope]
+wall_u    = 0.87   # outer walls (given)
+window_u  = 1.40   # double-glazed PVC windows ~2005 (Uw typically 1.3–1.5)
+floor_u   = 0.40   # ground-floor floor -> basement (estimate)
+ceiling_u = 0.30   # first-floor ceiling -> attic (estimate)
+
+[design]
+design_outdoor_temp_c = -12.0
+
+[operation]
+heating_season_start = "10-15"
+heating_season_end   = "05-15"
+
+[ventilation]
+# Window airing (Stoßlüften): while a window is wide open the room exchanges
+# this many air changes per hour. Per-room daily airing time is set via
+# airing_minutes_per_day on each room (default 0 = no airing). Ventilation loss
+# scales with (T_room - T_outside), i.e. it grows with the outdoor ΔT.
+air_changes_per_hour_open = 10.0
+# Baseline infiltration: continuous (24/7) leakage through the building envelope,
+# whole house. Older 2005 house with PVC double glazing ≈ 0.2–0.4 /h.
+air_changes_per_hour_baseline = 0.4
+
+[hot_water]
+# Domestic hot water (DHW). Monthly water use is read from the "Wasser" sheet of
+# source_data/Strom_Wasser_Verbrauch.xlsx; a seasonal fraction of it is heated.
+# In summer the total includes garden/play water, so the hot share is lower.
+hot_fraction_winter = 0.45
+hot_fraction_summer = 0.30
+summer_months = [5, 6, 7, 8, 9]
+cold_inlet_c = 10.0      # cold mains water inlet temperature
+target_temp_c = 55.0     # DHW delivery temperature
+dhw_flow_temp_c = 55.0   # heat-pump flow temp to charge the DHW tank (for COP)
+
+[buffer.basement]
+outdoor_high_c = 18.0
+buffer_high_c  = 18.0
+outdoor_low_c  = -10.0
+buffer_low_c   = 5.0
+inertia_hours  = 48.0
+
+[buffer.attic]
+outdoor_high_c = 18.0
+buffer_high_c  = 18.0
+outdoor_low_c  = -10.0
+buffer_low_c   = 5.0
+inertia_hours  = 12.0
+
+# ===== Untergeschoss (over basement) ========================================
+
+[[ground_floor.room]]
+name = "Küche"                       # 6.00 x 2.77, Platte 140x40x15 Typ 33
+floor_area_m2 = 16.62
+room_temp_c = 20.0
+exterior_wall_area_m2 = 21.05        # 8.77 m x 2.4 m
+window_area_m2 = 3.17
+heater_nominal_power_w = 1320.0      # @ 55 °C: Typ 33 H400 L1400 ≈ 1.05x the Typ22 anchor (1258 W)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[ground_floor.room]]
+name = "Wohnzimmer"                  # 4.78 x 6.00, Rippe 30x25, 56 Rippen
+floor_area_m2 = 28.68
+room_temp_c = 21.0
+exterior_wall_area_m2 = 25.87        # 10.78 m x 2.4 m
+window_area_m2 = 9.41
+heater_nominal_power_w = 2468.0      # est. @ 55 °C (converted from ~4500 W @ ΔT50)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+airing_minutes_per_day = 15.0
+
+[[ground_floor.room]]
+name = "Badezimmer (UG)"             # 2.35 x 2.97, Platte 75x180, 31 Rohre
+floor_area_m2 = 6.98
+room_temp_c = 24.0
+exterior_wall_area_m2 = 5.64         # 2.35 m x 2.4 m
+window_area_m2 = 2.74
+heater_nominal_power_w = 578.0       # est. @ 55 °C (converted from ~1200 W @ ΔT50)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[ground_floor.room]]
+name = "Gästezimmer"                 # 4.22 x 4.14, Rippe 60x16, 30 Rippen
+floor_area_m2 = 17.47
+room_temp_c = 20.0
+exterior_wall_area_m2 = 20.06        # 8.36 m x 2.4 m
+window_area_m2 = 2.64
+heater_nominal_power_w = 1142.0      # est. @ 55 °C (converted from ~2000 W @ ΔT50)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[ground_floor.room]]
+name = "Flur (UG)"                   # 4.78 x 2.36, Platte 90x80 Typ 10
+floor_area_m2 = 11.28
+room_temp_c = 20.0
+exterior_wall_area_m2 = 11.47        # 4.78 m x 2.4 m
+window_area_m2 = 1.22
+heater_nominal_power_w = 457.0       # est. @ 55 °C (converted from ~800 W @ ΔT50)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[ground_floor.room]]
+name = "WC"                          # 0.96 x 1.00, Platte 60x50 Typ 10
+floor_area_m2 = 0.96
+room_temp_c = 20.0
+exterior_wall_area_m2 = 4.70         # 1.96 m x 2.4 m
+window_area_m2 = 0.68
+heater_nominal_power_w = 229.0       # est. @ 55 °C (converted from ~400 W @ ΔT50)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[ground_floor.room]]
+name = "Treppenhaus (UG)"            # 3.37 x 1.09, kein Heizkörper
+floor_area_m2 = 3.67
+room_temp_c = 18.0
+exterior_wall_area_m2 = 3.37
+window_area_m2 = 0.86
+heater_nominal_power_w = 0.0
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+# ===== Obergeschoss (under attic) ===========================================
+
+[[first_floor.room]]
+name = "Arbeitszimmer"               # 2.38 x 2.93, Rippe 60x11, 20 Rippen
+floor_area_m2 = 6.97
+room_temp_c = 21.0
+exterior_wall_area_m2 = 12.74        # 5.31 m x 2.4 m
+window_area_m2 = 2.34
+heater_nominal_power_w = 658.0       # est. @ 55 °C (converted from ~1200 W @ ΔT50)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[first_floor.room]]
+name = "Kinderzimmer 3"              # 4.42 x 3.81, Platte 50x160 Typ 22
+floor_area_m2 = 16.84
+room_temp_c = 20.0
+exterior_wall_area_m2 = 19.75        # 8.23 m x 2.4 m
+window_area_m2 = 3.23
+heater_nominal_power_w = 1258.0      # rated 1258 W @ 55 °C flow (Platte 50x160 Typ 22)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+airing_minutes_per_day = 15.0
+
+[[first_floor.room]]
+name = "Kinderzimmer 2"              # 3.58 x 4.22, Platte 50x130 Typ 22
+floor_area_m2 = 15.11
+room_temp_c = 20.0
+exterior_wall_area_m2 = 8.59         # 3.58 m x 2.4 m
+window_area_m2 = 2.54
+heater_nominal_power_w = 1022.0      # interpolated 1258 W * 1.3/1.6 @ 55 °C (Platte 50x130 Typ 22)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+airing_minutes_per_day = 15.0
+
+[[first_floor.room]]
+name = "Kinderzimmer 1"              # 4.25 x 4.17, Platte 50x160 Typ 22
+floor_area_m2 = 17.72
+room_temp_c = 20.0
+exterior_wall_area_m2 = 20.21        # 8.42 m x 2.4 m
+window_area_m2 = 3.43
+heater_nominal_power_w = 1258.0      # rated 1258 W @ 55 °C flow (Platte 50x160 Typ 22)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+airing_minutes_per_day = 15.0
+
+[[first_floor.room]]
+name = "Schlafzimmer"               # 4.55 x 4.14, Platte 50x160 Typ 22
+floor_area_m2 = 18.84
+room_temp_c = 18.0
+exterior_wall_area_m2 = 20.86        # 8.69 m x 2.4 m
+window_area_m2 = 9.29
+heater_nominal_power_w = 1258.0      # rated 1258 W @ 55 °C flow (Platte 50x160 Typ 22)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+airing_minutes_per_day = 30.0
+
+[[first_floor.room]]
+name = "Badezimmer (OG)"            # 2.81 x 2.23, Platte 60x185, 26 Rohre
+floor_area_m2 = 6.27
+room_temp_c = 24.0
+exterior_wall_area_m2 = 5.35         # 2.23 m x 2.4 m
+window_area_m2 = 2.32
+heater_nominal_power_w = 578.0       # est. @ 55 °C (converted from ~1200 W @ ΔT50)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[first_floor.room]]
+name = "Treppenhaus (OG)"           # 3.70 x 1.10, kein Heizkörper
+floor_area_m2 = 4.07
+room_temp_c = 18.0
+exterior_wall_area_m2 = 8.88         # 3.70 m x 2.4 m
+window_area_m2 = 1.10
+heater_nominal_power_w = 0.0
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0

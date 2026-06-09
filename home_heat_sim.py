@@ -2,7 +2,7 @@
 
 Builds a heat-pump model on top of `hplib` (https://github.com/RE-Lab-Projects/hplib)
 whose performance curve is *fitted* to the manufacturer's datasheet points
-(see config.toml / source_data/*.md), instead of using hplib's "Generic" curve.
+(see config/config.toml / source_data/*.md), instead of using hplib's "Generic" curve.
 
 hplib models an air/water heat pump as bilinear in ambient air and flow temp:
 
@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 from hplib import hplib as hpl
 
-CONFIG_PATH = Path(__file__).with_name("config.toml")
+CONFIG_PATH = Path(__file__).resolve().parent / "config" / "config.toml"
 
 # Normalisation point for the electrical-power polynomial (A7 / W55).
 _REF_T_AMB = 7.0
@@ -115,17 +115,23 @@ class FittedHeatPump:
             "P_th_kW": round(float(res["P_th"]) / 1000, 2),
         }
 
-    def simulate_series(self, t_outside, t_flow: float) -> dict:
+    def simulate_series(self, t_outside, t_flow) -> dict:
         """Full-load COP and powers for an outdoor temperature series.
 
+        ``t_flow`` may be a scalar or an array (one value per outdoor temp).
         Returns numpy arrays (watts) for the heat pump running at full
         capacity: ``COP``, ``P_el`` (electrical input) and ``P_th`` (max
         thermal output / capacity) at each outdoor temperature.
         """
         t_outside = np.asarray(t_outside, dtype=float)
+        t_flow_arr = np.asarray(t_flow, dtype=float)
+        if t_flow_arr.ndim == 0 or t_flow_arr.size == 1:
+            t_flow_arr = np.full_like(t_outside, float(t_flow_arr))
+        else:
+            t_flow_arr = np.broadcast_to(t_flow_arr, t_outside.shape)
         res = self._model.simulate(
             t_in_primary=t_outside,
-            t_in_secondary=np.full_like(t_outside, t_flow - self.delta_t_k),
+            t_in_secondary=t_flow_arr - self.delta_t_k,
             t_amb=t_outside,
         )
         return {"COP": np.asarray(res["COP"], dtype=float),
@@ -154,7 +160,7 @@ def main() -> None:
     cfg = load_config()
     spec = HeatPumpSpec.from_config(cfg)
     delta_t = float(cfg["operation"]["delta_t_k"])
-    flow_temp = float(cfg["operation"]["flow_temp_c"])
+    flow_temp = float(cfg["heating_curve"]["flow_at_design_c"])
 
     hp = FittedHeatPump(spec, delta_t_k=delta_t)
 

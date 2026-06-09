@@ -38,6 +38,15 @@ design_outdoor_temp_c = -12.0
 heating_season_start = "10-15"
 heating_season_end   = "05-15"
 
+[ventilation]
+# Window airing (Stoßlüften): air changes per hour while a window is wide open.
+# Per-room daily airing time is set via `airing_minutes_per_day` on each room
+# (default 0 = no airing). Ventilation loss scales with (T_room - T_outside).
+air_changes_per_hour_open = 10.0
+# Baseline infiltration: continuous (24/7) leakage through the envelope, whole
+# house. Older houses ≈ 0.2–0.4 /h, tight modern builds < 0.1 /h. 0 = disabled.
+air_changes_per_hour_baseline = 0.0
+
 # ----------------------------------------------------------------------------
 # BUFFER SPACE TEMPERATURE MODEL (basement / attic)
 #
