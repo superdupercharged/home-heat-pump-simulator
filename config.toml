@@ -1,0 +1,35 @@
+# Home heat pump simulator configuration.
+# Edit these values to change the scenario, then run: .venv/bin/python home_heat_sim.py
+
+[operation]
+# Supply (flow) water temperature the heat pump runs at, in °C.
+# This is the main knob for high-temp operation. Try 55 or 58.
+flow_temp_c = 55.0
+# Temperature spread between flow and return water (K). hplib default is 5.
+delta_t_k = 5.0
+
+[cost]
+# Electricity price in EUR per kWh (used for bill estimation).
+electricity_price_eur_per_kwh = 0.25
+
+[heat_pump]
+name = "Midea M-Thermal Nature Mono R290 16kW (MHC-V16WD2RN7-BER90)"
+# Source/sink type: 1 = air/water (this unit), 2 = brine/water, 3 = water/water.
+group_id = 1
+nominal_p_th_kw = 16.0
+
+# Rated heating points from the manufacturer datasheet, used to fit the model.
+# Each row: [ambient_air_C, flow_water_C, P_th_W, P_el_W, COP]
+# Source: see source_data/midea_MHC-V16WD2RN7-BER90_datasheet.md
+[heat_pump.datasheet]
+points = [
+  [-7.0, 35.0, 13100.0, 4852.0, 2.70],
+  [ 7.0, 35.0, 15500.0, 3444.0, 4.50],
+  [ 7.0, 45.0, 15500.0, 4247.0, 3.65],
+  [ 7.0, 55.0, 16000.0, 5246.0, 3.05],
+]
+
+# Outdoor air temperatures (°C) to print in the example COP table.
+[report]
+outdoor_temps_c = [-15.0, -10.0, -7.0, -2.0, 2.0, 7.0, 12.0]
+flow_temps_c = [35.0, 45.0, 55.0, 58.0]

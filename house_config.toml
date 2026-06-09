@@ -1,0 +1,210 @@
+# House configuration for the heat pump simulator.
+#
+# Per-room steady-state heat loss model (see docs/house_modeling_plan.md):
+#
+#   wall_loss   = (exterior_wall_area - window_area) * wall_u  * (T_room - T_outside)
+#   window_loss =  window_area                        * window_u * (T_room - T_outside)
+#   horiz_loss  =  floor_area * (floor_u | ceiling_u) * (T_room - T_buffer)
+#
+# The house has two heated levels:
+#   - ground_floor : loses heat downward through the FLOOR into the BASEMENT
+#   - first_floor  : loses heat upward through the CEILING into the ATTIC
+# Basement and attic are unheated buffer spaces whose temperature is modeled
+# below (see [buffer.*]) as a function of a time-lagged outdoor temperature.
+
+[building]
+# Gross ("brutto") ground footprint and ceiling height (per level).
+footprint_length_m = 13.72
+footprint_width_m  = 9.95
+ceiling_height_m   = 2.4
+# Derived (reference): gross floor area per level = 13.72*9.95 = 136.5 m²,
+# wall perimeter = 47.34 m, gross exterior wall area = 113.6 m² per level.
+
+[envelope]
+# Heat transmission coefficients (U-values) in W/(m²K).
+wall_u    = 0.87   # outer walls (given)
+window_u  = 1.40   # double-glazed PVC windows ~2005 (Uw typically 1.3–1.5)
+floor_u   = 0.40   # ground-floor floor -> basement (estimate, tune to your build)
+ceiling_u = 0.30   # first-floor ceiling -> attic (estimate, tune to your build)
+
+[design]
+# Outdoor design temperature for peak-load sizing (°C). Ulm/Memmingen ≈ -12.
+design_outdoor_temp_c = -12.0
+
+[operation]
+# Heating season: heating is ON from start (mid October) through end (mid May),
+# and OFF in between. Dates as "MM-DD". Demand outside this window is set to 0,
+# which also compensates for solar/internal gains we don't model in summer.
+heating_season_start = "10-15"
+heating_season_end   = "05-15"
+
+# ----------------------------------------------------------------------------
+# BUFFER SPACE TEMPERATURE MODEL (basement / attic)
+#
+# Buffer temperature is a linear interpolation against a TIME-LAGGED outdoor
+# temperature:
+#   T_out >= outdoor_high_c  ->  buffer = buffer_high_c
+#   T_out <= outdoor_low_c   ->  buffer = buffer_low_c   (clamped)
+#   in between               ->  linear
+#
+# Idea per your spec: the spaces start cooling once it gets colder than ~18 °C
+# outside and bottom out around ~5 °C at clearly sub-zero outdoor temps.
+#
+# inertia_hours = thermal inertia: the outdoor temperature is exponentially
+# smoothed (low-pass) with this time constant before the mapping, so the buffer
+# temperature lags swings in outdoor temperature (large mass = slow response).
+# ----------------------------------------------------------------------------
+
+[buffer.basement]
+outdoor_high_c = 18.0
+buffer_high_c  = 18.0
+outdoor_low_c  = -10.0
+buffer_low_c   = 5.0
+inertia_hours  = 48.0    # basement: heavy, ground-coupled -> slow
+
+[buffer.attic]
+outdoor_high_c = 18.0
+buffer_high_c  = 18.0
+outdoor_low_c  = -10.0
+buffer_low_c   = 5.0
+inertia_hours  = 12.0    # attic: lighter -> faster (set colder if cold roof)
+
+# ----------------------------------------------------------------------------
+# ROOMS
+#
+# Add one [[ground_floor.room]] / [[first_floor.room]] block per room.
+#   floor_area_m2          : room floor area (also used for floor/ceiling loss)
+#   room_temp_c            : indoor setpoint
+#   exterior_wall_area_m2  : GROSS outside-facing wall area (windows subtracted)
+#   window_area_m2         : total window area
+#   heater_nominal_power_w : radiator rated output (EN 442, default 75/65/20)
+#   heater_exponent        : radiator characteristic exponent (~1.3)
+#   heater_rating_delta_t_k: ΔT at which nominal power is rated (50 K = 75/65/20)
+#
+# The rooms below are PLACEHOLDERS (each floor sums to ~136.5 m²). Replace them
+# with your real layout.
+# ----------------------------------------------------------------------------
+
+# ===== Ground floor (over basement) =========================================
+
+[[ground_floor.room]]
+name = "Living room"
+floor_area_m2 = 40.0
+room_temp_c = 21.0
+exterior_wall_area_m2 = 30.0
+window_area_m2 = 10.0
+heater_nominal_power_w = 2500.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+[[ground_floor.room]]
+name = "Kitchen"
+floor_area_m2 = 18.0
+room_temp_c = 20.0
+exterior_wall_area_m2 = 14.0
+window_area_m2 = 3.0
+heater_nominal_power_w = 1200.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+[[ground_floor.room]]
+name = "Dining room"
+floor_area_m2 = 22.0
+room_temp_c = 21.0
+exterior_wall_area_m2 = 16.0
+window_area_m2 = 5.0
+heater_nominal_power_w = 1500.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+[[ground_floor.room]]
+name = "Office"
+floor_area_m2 = 20.0
+room_temp_c = 21.0
+exterior_wall_area_m2 = 14.0
+window_area_m2 = 4.0
+heater_nominal_power_w = 1200.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+[[ground_floor.room]]
+name = "Guest WC"
+floor_area_m2 = 6.0
+room_temp_c = 20.0
+exterior_wall_area_m2 = 5.0
+window_area_m2 = 1.0
+heater_nominal_power_w = 500.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+[[ground_floor.room]]
+name = "Hallway / stairs (GF)"
+floor_area_m2 = 30.5
+room_temp_c = 20.0
+exterior_wall_area_m2 = 8.0
+window_area_m2 = 1.0
+heater_nominal_power_w = 800.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+# ===== First floor (under attic) ============================================
+
+[[first_floor.room]]
+name = "Master bedroom"
+floor_area_m2 = 28.0
+room_temp_c = 18.0
+exterior_wall_area_m2 = 22.0
+window_area_m2 = 6.0
+heater_nominal_power_w = 1500.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+[[first_floor.room]]
+name = "Bedroom 2"
+floor_area_m2 = 18.0
+room_temp_c = 18.0
+exterior_wall_area_m2 = 14.0
+window_area_m2 = 3.0
+heater_nominal_power_w = 1000.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+[[first_floor.room]]
+name = "Bedroom 3"
+floor_area_m2 = 16.0
+room_temp_c = 18.0
+exterior_wall_area_m2 = 14.0
+window_area_m2 = 3.0
+heater_nominal_power_w = 1000.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+[[first_floor.room]]
+name = "Bathroom"
+floor_area_m2 = 14.0
+room_temp_c = 24.0
+exterior_wall_area_m2 = 10.0
+window_area_m2 = 2.0
+heater_nominal_power_w = 1200.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+[[first_floor.room]]
+name = "Storage room"
+floor_area_m2 = 40.0
+room_temp_c = 18.0
+exterior_wall_area_m2 = 20.0
+window_area_m2 = 4.0
+heater_nominal_power_w = 1500.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0
+
+[[first_floor.room]]
+name = "Hallway / stairs (1F)"
+floor_area_m2 = 20.5
+room_temp_c = 19.0
+exterior_wall_area_m2 = 6.0
+window_area_m2 = 1.0
+heater_nominal_power_w = 600.0
+heater_exponent = 1.30
+heater_rating_delta_t_k = 50.0

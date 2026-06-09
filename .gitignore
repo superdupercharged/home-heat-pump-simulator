@@ -1,0 +1,18 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Generated outputs
+output/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+source_data/Thilo Bleumer Midea Angebot.pdf
