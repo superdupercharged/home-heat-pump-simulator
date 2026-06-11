@@ -22,6 +22,11 @@ footprint_length_m = 13.72
 footprint_width_m  = 9.95
 ceiling_height_m   = 2.4
 # Heated floor area per level from the Raumbuch ≈ 85.7 m² (UG) / 85.8 m² (OG).
+# Share of gross footprint taken up by walls/partitions. A wall take-off for
+# this house (30 cm outer, 20 cm inner) gives ~12.5-13 %. Net floor = brutto *
+# (1 - wall_area_fraction); the remainder beyond modeled rooms becomes the
+# auto circulation proxy (floor/ceiling + infiltration losses).
+wall_area_fraction = 0.13
 
 [envelope]
 wall_u    = 0.87   # outer walls (given)

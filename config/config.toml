@@ -10,7 +10,7 @@ delta_t_k = 5.0
 room_temp_c = 20.0
 # Endpunkt: Vorlauf at norm outdoor temp (NAT, DIN EN 12831; matches house design).
 design_outdoor_temp_c = -12.0
-flow_at_design_c = 55.0   # also used by radiator_check at design outdoor temp
+flow_at_design_c = 55.0   # also used by room_check at design outdoor temp
 # Fußpunkt: minimum flow at mild outdoor temp.
 foot_outdoor_temp_c = 20.0
 flow_at_foot_c = 25.0

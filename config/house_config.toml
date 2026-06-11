@@ -19,6 +19,10 @@ footprint_width_m  = 9.95
 ceiling_height_m   = 2.4
 # Derived (reference): gross floor area per level = 13.72*9.95 = 136.5 m²,
 # wall perimeter = 47.34 m, gross exterior wall area = 113.6 m² per level.
+# Share of gross footprint taken up by walls/partitions (default 0.12). Net
+# floor = brutto * (1 - wall_area_fraction); area beyond the modeled rooms
+# becomes an auto circulation proxy (floor/ceiling + infiltration losses).
+wall_area_fraction = 0.12
 
 [envelope]
 # Heat transmission coefficients (U-values) in W/(m²K).

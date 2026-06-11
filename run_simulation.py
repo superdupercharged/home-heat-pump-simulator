@@ -45,7 +45,8 @@ def couple(house: House, hp: FittedHeatPump, scenario,
                             use_inertia=scenario.use_inertia, active=active)
     demand = hs["total_w"]
     transmission_w = hs["envelope_w"] + hs["floor_w"] + hs["ceiling_w"]
-    vent_w = hs["vent_w"]
+    infiltration_w = hs["infiltration_w"]   # leaky envelope, every room
+    airing_w = hs["airing_w"]               # window Stoßlüften only
 
     flow_data = heating_curve.flow_temp_series(outdoor, dt_hours=scenario.dt_hours)
     flow_series = flow_data["flow"]
@@ -62,7 +63,8 @@ def couple(house: House, hp: FittedHeatPump, scenario,
             "capacity_w": capacity, "delivered_hp_w": delivered_hp,
             "p_el_hp_w": p_el_hp,
             "backup_w": backup_th, "p_el_total_w": p_el_total,
-            "transmission_w": transmission_w, "vent_w": vent_w,
+            "transmission_w": transmission_w,
+            "infiltration_w": infiltration_w, "airing_w": airing_w,
             "flow_c": flow_series, "outdoor_damped": flow_data["outdoor_damped"]}
 
 
@@ -110,6 +112,10 @@ def run_full_year(house, hp, scenario, heating_curve, price, house_label,
     print(f"  House config        : {house_label}"
           f"{'  (no DHW/ventilation configured)' if not dhw else ''}")
     print(f"  {heating_curve.label()}")
+    if house.circulation_proxy_m2:
+        for fl, area in sorted(house.circulation_proxy_m2.items()):
+            print(f"  Circulation proxy {fl}: {area:.1f} m² "
+                  f"(auto: net floor − modeled rooms)")
     if heating.any():
         print(f"  Avg flow (heating)  : {avg_flow:.1f} °C\n")
     else:
@@ -168,10 +174,11 @@ def run_full_year(house, hp, scenario, heating_curve, price, house_label,
         el_day = el_day + dhw_el_day
         label_suffix = " (incl. DHW)"
 
-    # Annual thermal-energy split for the pie chart.
+    # Annual thermal-energy split for the pie chart. "Lüften" here covers both
+    # ventilation forms: window airing + baseline infiltration (undichte Hülle).
     pos = r["demand_w"] > 0
     trans_kwh = r["transmission_w"][pos].sum() * dt / 1000
-    vent_kwh = r["vent_w"][pos].sum() * dt / 1000
+    vent_kwh = (r["infiltration_w"][pos].sum() + r["airing_w"][pos].sum()) * dt / 1000
 
     fig = plt.figure(figsize=(13, 8))
     grid = fig.add_gridspec(2, 3, height_ratios=[2.0, 1.0], width_ratios=[1.0, 1.0, 1.35])
@@ -213,15 +220,15 @@ def run_full_year(house, hp, scenario, heating_curve, price, house_label,
 
     # --- Bottom-middle: energy-split pie (thermal kWh) ---
     pie_vals = [trans_kwh, vent_kwh]
-    pie_labels = ["Wärmeverlust", "Lüften"]
+    pie_labels = ["Transmission loss", "Ventilation\n(airing + infiltr.)"]
     pie_colors = ["#d29922", "#1f6feb"]
     if dhw and dhw_heat > 0:
         pie_vals.append(dhw_heat)
-        pie_labels.append("Warmwasser")
+        pie_labels.append("Hot water (DHW)")
         pie_colors.append("#2da44e")
     ax_pie.pie(pie_vals, labels=pie_labels, colors=pie_colors,
                autopct="%1.0f%%", startangle=90, textprops={"fontsize": 8})
-    ax_pie.set_title("Energieanteile (Wärme)", fontsize=9)
+    ax_pie.set_title("Energy split (heat)", fontsize=9)
 
     # --- Bottom-right: info box ---
     total_heat = th_kwh + dhw_heat

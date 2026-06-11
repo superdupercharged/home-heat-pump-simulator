@@ -1,13 +1,20 @@
-"""Radiator adequacy check.
+"""Per-room checks at the design point.
 
-For each room, compare the radiator's heat output at a given flow temperature
-against the room's design heat loss (at the design outdoor temperature). Rooms
-where the radiator can't cover the load would stay too cold and need either a
-higher flow temperature, a bigger radiator, or backup heat.
+Two analyses for the coldest design conditions (design outdoor temp, heating
+curve's design flow temperature):
+
+1. Radiator adequacy: per room, compare the radiator's heat output at the design
+   flow temperature against the room's design heat loss. Rooms the radiator can't
+   cover would stay too cold and need a higher flow temp, a bigger radiator, or
+   backup heat.  ->  output/radiator_check.png
+2. Room energy split: per room, the design heat loss split into transmission
+   (Wärmeverlust), baseline infiltration (undichte Hülle) and window airing
+   (Lüften), highest demand on top.  Includes the auto circulation-proxy rooms.
+   ->  output/radiator_room_energy.png
 
 Usage:
-    .venv/bin/python radiator_check.py
-    HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python radiator_check.py
+    .venv/bin/python room_check.py
+    HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python room_check.py
 """
 
 from __future__ import annotations
@@ -43,7 +50,7 @@ def main() -> None:
 
     res = house.losses_at(t_design)
 
-    print(f"RADIATOR ADEQUACY CHECK  |  house: {house_label}")
+    print(f"ROOM CHECK  |  house: {house_label}")
     print(f"  {curve.label()}")
     print(f"  Check @ design point: {flow_main:.0f} / {flow_alt:.0f} °C Vorlauf, "
           f"spread {delta_t:.0f} K\n")
@@ -87,7 +94,7 @@ def main() -> None:
               for c in cov]
 
     fig, ax = plt.subplots(figsize=(11, 6))
-    bars = ax.bar(range(len(names)), cov, color=colors)
+    ax.bar(range(len(names)), cov, color=colors)
     ax.axhline(100, color="#444", ls="--", lw=1, label="100 % (deckt Last)")
     for i, c in enumerate(cov):
         ax.text(i, c + 1, f"{c:.0f}", ha="center", va="bottom", fontsize=8)
@@ -103,6 +110,57 @@ def main() -> None:
     fig.savefig(out, dpi=110)
     plt.close(fig)
     print(f"\nPlot saved to: {out}")
+
+    out2 = plot_room_energy_split(res, house_label, t_design)
+    print(f"Plot saved to: {out2}")
+
+
+def plot_room_energy_split(res: dict, house_label: str, t_design: float) -> Path:
+    """Horizontal stacked bars: per-room design heat loss split into
+    transmission (Wärmeverlust) and ventilation (Lüften), highest on top."""
+    rooms = []
+    for _lvl, room, br in res["rooms"]:
+        # Three segments: conduction transmission, baseline infiltration (undichte
+        # Hülle, every room), and window airing (only rooms with an airing time).
+        trans = br["wall"] + br["window"] + br["horiz"]
+        infil = br["infiltration"]
+        airing = br["airing"]
+        total = trans + infil + airing
+        if total <= 0:
+            continue
+        rooms.append((room.name, trans, infil, airing, total))
+    rooms.sort(key=lambda r: r[4])  # ascending; invert_yaxis puts max on top
+
+    names = [r[0] for r in rooms]
+    trans = np.array([r[1] for r in rooms])
+    infil = np.array([r[2] for r in rooms])
+    airing = np.array([r[3] for r in rooms])
+    totals = np.array([r[4] for r in rooms])
+    y = np.arange(len(names))
+
+    fig, ax = plt.subplots(figsize=(11, max(5, 0.5 * len(names) + 1)))
+    ax.barh(y, trans, color="#d29922", label="Transmission loss")
+    ax.barh(y, infil, left=trans, color="#8957e5",
+            label="Infiltration (leaky envelope)")
+    ax.barh(y, airing, left=trans + infil, color="#1f6feb",
+            label="Airing (windows)")
+    for i, tot in enumerate(totals):
+        ax.text(tot + totals.max() * 0.01, i, f"{tot:.0f} W",
+                va="center", ha="left", fontsize=8)
+    ax.set_yticks(y)
+    ax.set_yticklabels(names, fontsize=8)
+    ax.invert_yaxis()
+    ax.set_xlim(0, totals.max() * 1.12)
+    ax.set_xlabel("Design heat load (W) @ {:.0f} °C outdoor".format(t_design))
+    ax.set_title(f"Energy split per room  |  house: {house_label}  |  "
+                 f"design {t_design:.0f} °C")
+    ax.grid(axis="x", alpha=0.3)
+    ax.legend(loc="upper right")
+    fig.tight_layout()
+    out = OUTPUT_DIR / "radiator_room_energy.png"
+    fig.savefig(out, dpi=110)
+    plt.close(fig)
+    return out
 
 
 if __name__ == "__main__":

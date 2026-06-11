@@ -6,7 +6,16 @@ Steady-state per-room UA*dT heat loss, split over two heated levels:
 
 Basement and attic temperatures are not fixed: they follow a time-lagged
 outdoor temperature via the BufferModel (linear interpolation + exponential
-smoothing for thermal inertia). See config/house_config.toml for all parameters.
+smoothing for thermal inertia).
+
+If ``[building]`` gives a footprint, each heated level also gets an automatic
+* circulation proxy* room for unmodeled area:
+
+    net floor  = footprint × (1 − 10 % walls)
+    proxy area = net floor − sum(configured room floor areas)
+
+The proxy has floor/ceiling loss into basement/attic and infiltration, but no
+exterior walls or radiators.
 """
 
 from __future__ import annotations
@@ -17,6 +26,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+
+# Default fraction of gross floor area taken up by walls/partitions, used when
+# [building] wall_area_fraction is not set. A rough wall take-off (30 cm outer,
+# 20 cm inner) lands around 0.12-0.13 for a typical house.
+DEFAULT_WALL_AREA_FRACTION = 0.12
+CIRCULATION_PROXY_MIN_AREA_M2 = 0.5
+CIRCULATION_PROXY_ROOM_TEMP_C = 20.0
 
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 HOUSE_CONFIG_PATH = CONFIG_DIR / "house_config.toml"
@@ -117,6 +133,8 @@ class Room:
     heater_rating_flow_c: float | None = None
     # Daily window-airing time (Stoßlüften) in minutes; drives ventilation loss.
     airing_minutes_per_day: float = 0.0
+    # Interior-only space (no exterior envelope) -> no baseline infiltration.
+    interior_only: bool = False
 
     @classmethod
     def from_config(cls, d: dict) -> "Room":
@@ -135,21 +153,45 @@ class Room:
             airing_minutes_per_day=float(d.get("airing_minutes_per_day", 0.0)),
         )
 
-    def vent_ua(self, ceiling_height_m: float, ach_open: float,
-                baseline_ach: float = 0.0) -> float:
-        """Ventilation heat-loss coefficient [W/K] (airing + infiltration).
+    @classmethod
+    def circulation_proxy(cls, floor_label: str, area_m2: float) -> "Room":
+        """Synthetic room for unmodeled circulation area on a heated level."""
+        return cls(
+            name=f"Verkehrsfläche (Proxy, {floor_label})",
+            floor_area_m2=area_m2,
+            room_temp_c=CIRCULATION_PROXY_ROOM_TEMP_C,
+            exterior_wall_area_m2=0.0,
+            window_area_m2=0.0,
+            heater_nominal_power_w=0.0,
+            heater_exponent=1.30,
+            interior_only=True,
+        )
 
-        Two contributions, both averaged over the day:
-          - airing (Stoßlüften): ``ach_open`` while the window is open, reduced
-            by the open fraction (airing_minutes / (60*24));
-          - baseline infiltration: ``baseline_ach`` continuous leakage through
-            the building envelope, 24/7.
-        Energy then scales with (T_room - T_out).
+    def airing_ua(self, ceiling_height_m: float, ach_open: float) -> float:
+        """Window-airing (Stoßlüften) heat-loss coefficient [W/K].
+
+        Only rooms with a configured ``airing_minutes_per_day`` contribute:
+        ``ach_open`` while the window is open, averaged over the day by the open
+        fraction (airing_minutes / (60*24)). Energy scales with (T_room - T_out).
         """
+        if self.airing_minutes_per_day <= 0:
+            return 0.0
         volume = self.floor_area_m2 * ceiling_height_m
         ach_avg = ach_open * (self.airing_minutes_per_day / 60.0) / 24.0
-        ach_avg += baseline_ach
         return VOL_HEAT_CAP_AIR_WH * volume * ach_avg
+
+    def infiltration_ua(self, ceiling_height_m: float,
+                        baseline_ach: float = 0.0) -> float:
+        """Baseline infiltration heat-loss coefficient [W/K].
+
+        Continuous (24/7) leakage through the building envelope (undichte Hülle).
+        Interior-only spaces (e.g. circulation proxies) have no exterior envelope,
+        so they get no infiltration. Energy scales with (T_room - T_out).
+        """
+        if self.interior_only:
+            return 0.0
+        volume = self.floor_area_m2 * ceiling_height_m
+        return VOL_HEAT_CAP_AIR_WH * volume * baseline_ach
 
     def radiator_output_w(self, flow_temp_c: float,
                           delta_t_spread_k: float = 5.0,
@@ -178,9 +220,11 @@ class Room:
     def loss_w(self, envelope: dict, t_outside: float, t_buffer: float,
                horiz_u: float, ceiling_height_m: float = 0.0,
                ach_open: float = 0.0, baseline_ach: float = 0.0) -> dict:
-        """Heat loss [W] split into wall / window / horizontal / vent components.
+        """Heat loss [W] split into components.
 
-        ``horiz_u`` is floor_u (ground floor -> basement) or ceiling_u
+        Keys: wall, window, horiz (conduction), infiltration (leaky envelope,
+        every room), airing (window Stoßlüften, only rooms with an airing time),
+        and total. ``horiz_u`` is floor_u (ground floor -> basement) or ceiling_u
         (first floor -> attic); ``t_buffer`` is the corresponding buffer temp.
         """
         net_wall = max(self.exterior_wall_area_m2 - self.window_area_m2, 0.0)
@@ -189,9 +233,11 @@ class Room:
         wall = net_wall * envelope["wall_u"] * d_out
         window = self.window_area_m2 * envelope["window_u"] * d_out
         horiz = self.floor_area_m2 * horiz_u * d_buf
-        vent = self.vent_ua(ceiling_height_m, ach_open, baseline_ach) * d_out
-        return {"wall": wall, "window": window, "horiz": horiz, "vent": vent,
-                "total": wall + window + horiz + vent}
+        infiltration = self.infiltration_ua(ceiling_height_m, baseline_ach) * d_out
+        airing = self.airing_ua(ceiling_height_m, ach_open) * d_out
+        total = wall + window + horiz + infiltration + airing
+        return {"wall": wall, "window": window, "horiz": horiz,
+                "infiltration": infiltration, "airing": airing, "total": total}
 
 
 @dataclass
@@ -207,23 +253,64 @@ class House:
     baseline_ach: float = 0.0
     heating_season_start: str = "10-15"
     heating_season_end: str = "05-15"
+    circulation_proxy_m2: dict[str, float] | None = None
+
+    @staticmethod
+    def _net_floor_area_m2(building: dict) -> float | None:
+        """Net heated floor area per level from footprint minus wall share.
+
+        The wall share is ``[building] wall_area_fraction`` (default 0.12).
+        """
+        length = building.get("footprint_length_m")
+        width = building.get("footprint_width_m")
+        if length is None or width is None:
+            return None
+        brutto = float(length) * float(width)
+        wall_fraction = float(
+            building.get("wall_area_fraction", DEFAULT_WALL_AREA_FRACTION)
+        )
+        return brutto * (1.0 - wall_fraction)
+
+    @staticmethod
+    def _with_circulation_proxies(
+        rooms: list[Room], net_floor_area_m2: float, floor_label: str,
+    ) -> tuple[list[Room], float]:
+        """Append a proxy room if configured rooms do not cover the net floor area."""
+        modeled = sum(r.floor_area_m2 for r in rooms)
+        proxy_area = net_floor_area_m2 - modeled
+        if proxy_area < CIRCULATION_PROXY_MIN_AREA_M2:
+            return list(rooms), 0.0
+        return [*rooms, Room.circulation_proxy(floor_label, proxy_area)], proxy_area
 
     @classmethod
     def from_config(cls, cfg: dict) -> "House":
         op = cfg.get("operation", {})
         vent = cfg.get("ventilation", {})
+        building = cfg.get("building", {})
+        net_area = cls._net_floor_area_m2(building)
+        ground = [Room.from_config(r) for r in cfg["ground_floor"]["room"]]
+        first = [Room.from_config(r) for r in cfg["first_floor"]["room"]]
+        proxies: dict[str, float] = {}
+        if net_area is not None:
+            ground, ug_proxy = cls._with_circulation_proxies(ground, net_area, "UG")
+            first, og_proxy = cls._with_circulation_proxies(first, net_area, "OG")
+            if ug_proxy:
+                proxies["UG"] = ug_proxy
+            if og_proxy:
+                proxies["OG"] = og_proxy
         return cls(
             envelope=cfg["envelope"],
-            ground_floor=[Room.from_config(r) for r in cfg["ground_floor"]["room"]],
-            first_floor=[Room.from_config(r) for r in cfg["first_floor"]["room"]],
+            ground_floor=ground,
+            first_floor=first,
             basement=BufferModel.from_config(cfg["buffer"]["basement"]),
             attic=BufferModel.from_config(cfg["buffer"]["attic"]),
             design_outdoor_temp_c=float(cfg["design"]["design_outdoor_temp_c"]),
-            ceiling_height_m=float(cfg["building"]["ceiling_height_m"]),
+            ceiling_height_m=float(building["ceiling_height_m"]),
             vent_ach_open=float(vent.get("air_changes_per_hour_open", 10.0)),
             baseline_ach=float(vent.get("air_changes_per_hour_baseline", 0.0)),
             heating_season_start=str(op.get("heating_season_start", "10-15")),
             heating_season_end=str(op.get("heating_season_end", "05-15")),
+            circulation_proxy_m2=proxies or None,
         )
 
     def heating_active(self, times) -> np.ndarray:
@@ -240,28 +327,33 @@ class House:
     def loss_coefficients(self) -> dict:
         """Aggregate UA coefficients so power can be vectorized over a series.
 
-        Heating power decomposes linearly into three streams:
-          envelope (walls+windows+ventilation vs outdoor): A_env - B_env * T_out
-          ground floor (floor vs basement):    A_flr  - B_flr  * T_basement
-          first floor  (ceiling vs attic):     A_clg  - B_clg  * T_attic
-        where A_* = sum(UA * T_room) and B_* = sum(UA). Ventilation (airing) is
-        folded into the envelope stream because incoming air is at outdoor temp.
+        Heating power decomposes linearly into streams, each A_* - B_* * T_ref
+        with A_* = sum(UA * T_room) and B_* = sum(UA):
+          envelope (walls+windows vs outdoor)
+          infiltration (leaky envelope vs outdoor, every room)
+          airing (window Stoßlüften vs outdoor, only rooms with an airing time)
+          ground floor (floor vs basement) / first floor (ceiling vs attic)
+        Infiltration air enters at outdoor temp, so it scales like the envelope;
+        it is reported separately from airing ("Lüften").
         """
         wall_u = self.envelope["wall_u"]
         window_u = self.envelope["window_u"]
         floor_u = self.envelope["floor_u"]
         ceiling_u = self.envelope["ceiling_u"]
 
-        a_env = b_env = a_flr = b_flr = a_clg = b_clg = a_vent = b_vent = 0.0
+        a_env = b_env = a_flr = b_flr = a_clg = b_clg = 0.0
+        a_inf = b_inf = a_air = b_air = 0.0
         for room in self.ground_floor + self.first_floor:
             net_wall = max(room.exterior_wall_area_m2 - room.window_area_m2, 0.0)
             ua_cond = net_wall * wall_u + room.window_area_m2 * window_u
             a_env += ua_cond * room.room_temp_c
             b_env += ua_cond
-            ua_v = room.vent_ua(self.ceiling_height_m, self.vent_ach_open,
-                                self.baseline_ach)
-            a_vent += ua_v * room.room_temp_c
-            b_vent += ua_v
+            ua_inf = room.infiltration_ua(self.ceiling_height_m, self.baseline_ach)
+            a_inf += ua_inf * room.room_temp_c
+            b_inf += ua_inf
+            ua_air = room.airing_ua(self.ceiling_height_m, self.vent_ach_open)
+            a_air += ua_air * room.room_temp_c
+            b_air += ua_air
         for room in self.ground_floor:
             ua = room.floor_area_m2 * floor_u
             a_flr += ua * room.room_temp_c
@@ -272,7 +364,7 @@ class House:
             b_clg += ua
         return {"a_env": a_env, "b_env": b_env, "a_flr": a_flr,
                 "b_flr": b_flr, "a_clg": a_clg, "b_clg": b_clg,
-                "a_vent": a_vent, "b_vent": b_vent}
+                "a_inf": a_inf, "b_inf": b_inf, "a_air": a_air, "b_air": b_air}
 
     def power_series(self, outdoor, dt_hours: float = 1.0,
                      use_inertia: bool = True, active=None) -> dict:
@@ -293,13 +385,16 @@ class House:
 
         c = self.loss_coefficients()
         envelope = c["a_env"] - c["b_env"] * outdoor   # walls + windows (conduction)
-        vent = c["a_vent"] - c["b_vent"] * outdoor      # airing + infiltration
+        infiltration = c["a_inf"] - c["b_inf"] * outdoor  # leaky envelope, all rooms
+        airing = c["a_air"] - c["b_air"] * outdoor      # window Stoßlüften only
         floor = c["a_flr"] - c["b_flr"] * t_base
         ceiling = c["a_clg"] - c["b_clg"] * t_attic
-        total = np.clip(envelope + vent + floor + ceiling, 0.0, None)
+        total = np.clip(envelope + infiltration + airing + floor + ceiling,
+                        0.0, None)
         if active is not None:
             total = total * np.asarray(active, dtype=float)
-        return {"total_w": total, "envelope_w": envelope, "vent_w": vent,
+        return {"total_w": total, "envelope_w": envelope,
+                "infiltration_w": infiltration, "airing_w": airing,
                 "floor_w": floor, "ceiling_w": ceiling,
                 "t_basement": t_base, "t_attic": t_attic}
 
@@ -356,6 +451,10 @@ def main() -> None:
     print(f"  Floor+ceiling (into basement/attic): {horiz/1000:.2f} kW "
           f"({horiz/res['total_w']*100:.0f}% of total)")
     print(f"  TOTAL peak heat loss: {res['total_w']/1000:.2f} kW")
+    if house.circulation_proxy_m2:
+        print("\n  Auto circulation proxies (net floor − modeled rooms):")
+        for fl, area in sorted(house.circulation_proxy_m2.items()):
+            print(f"    {fl}: {area:.1f} m²")
 
     print("\nBuffer temperature vs outdoor (steady, no lag):")
     print(f"  {'outdoor':>8}{'basement':>10}{'attic':>8}")

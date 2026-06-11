@@ -37,12 +37,12 @@ HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python run_house.py full_yea
 HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python run_house.py worst_case
 ```
 
-### Radiator adequacy check
+### Room check (radiator adequacy + energy split)
 
-Compares radiator output at 55/58 °C flow against room design heat load. Plot in `output/radiator_check.png`.
+Per-room checks at the design point: radiator adequacy (output at 55/58 °C flow vs. room heat load) and per-room energy split (transmission vs. ventilation). Plots in `output/radiator_check.png` and `output/radiator_room_energy.png`.
 
 ```bash
-HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python radiator_check.py
+HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python room_check.py
 ```
 
 ### Heat pump COP table (datasheet fit)
@@ -63,6 +63,8 @@ All config files live in `config/`:
 | `config/house_config_rehgraeble.toml` | Your house: rooms, U-values, ventilation, DHW |
 | `config/house_config.toml` | Generic template house |
 
-The heating curve (`[heating_curve]` in `config/config.toml`) sets flow temperature from a damped outdoor temp (default 24 h lag). `flow_at_design_c` is the design-point Vorlauf (NAT) and is also used by `radiator_check.py`. Plots: `output/heating_curve.png`, `output/sim_yearly_temps.png`.
+Each heated level auto-gets a **circulation proxy** when `[building]` footprint is set: `net floor = footprint × (1 − wall_area_fraction) − sum(room areas)`. `wall_area_fraction` (default 0.12) is the wall/partition share. Covers Flur/Verkehrsfläche without listing every zone. No exterior walls, no radiators; floor/ceiling + infiltration losses only.
+
+The heating curve (`[heating_curve]` in `config/config.toml`) sets flow temperature from a damped outdoor temp (default 24 h lag). `flow_at_design_c` is the design-point Vorlauf (NAT) and is also used by `room_check.py`. Plots: `output/heating_curve.png`, `output/sim_yearly_temps.png`.
 
 Datasheets and weather data live in `source_data/`.
