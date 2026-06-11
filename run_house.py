@@ -21,12 +21,13 @@ matplotlib.use("Agg")  # headless: render straight to file
 import matplotlib.pyplot as plt  # noqa: E402
 
 from house_model import House, load_house_config  # noqa: E402
+from home_heat_sim import load_config  # noqa: E402
 from weather import WeatherDriver  # noqa: E402
 
 OUTPUT_DIR = Path(__file__).with_name("output")
 
 
-def run_full_year(house: House, scenario) -> Path:
+def run_full_year(house: House, scenario, weather_label: str = "") -> Path:
     df = scenario.data
     outdoor = df["t_out"].to_numpy()
     active = house.heating_active(df["time"])
@@ -63,7 +64,8 @@ def run_full_year(house: House, scenario) -> Path:
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 7))
     ax1.fill_between(range(n_days), daily_mean, color="#cfe3ff")
     ax1.plot(range(n_days), daily_mean, color="#1f6feb", lw=1.2)
-    ax1.set_title("House heating power - daily mean over the year")
+    weather_note = f"{weather_label}  |  " if weather_label else ""
+    ax1.set_title(f"House heating power - daily mean  |  {weather_note}{n_days} days")
     ax1.set_xlabel("day of year")
     ax1.set_ylabel("power (kW)")
     ax1.set_xlim(0, n_days - 1)
@@ -87,7 +89,7 @@ def run_full_year(house: House, scenario) -> Path:
     return out
 
 
-def run_worst_case(house: House, scenario) -> Path:
+def run_worst_case(house: House, scenario, weather_label: str = "") -> Path:
     df = scenario.data
     outdoor = df["t_out"].to_numpy()
     active = house.heating_active(df["time"])
@@ -111,7 +113,8 @@ def run_worst_case(house: House, scenario) -> Path:
     bars[worst_i].set_color("#cf222e")
     for i, v in enumerate(power_kw):
         ax.text(i, v + 0.05, f"{v:.1f}", ha="center", va="bottom", fontsize=8)
-    ax.set_title("Worst-case heating power per month (coldest hour)")
+    weather_note = f"{weather_label}  |  " if weather_label else ""
+    ax.set_title(f"Worst-case heating power per month  |  {weather_note}coldest hour")
     ax.set_ylabel("power (kW)")
     ax.grid(axis="y", alpha=0.3)
     fig.tight_layout()
@@ -124,13 +127,15 @@ def run_worst_case(house: House, scenario) -> Path:
 def main() -> None:
     scenario_name = sys.argv[1] if len(sys.argv) > 1 else "full_year"
     OUTPUT_DIR.mkdir(exist_ok=True)
+    cfg = load_config()
     house = House.from_config(load_house_config())
-    drv = WeatherDriver()
+    drv = WeatherDriver.from_config(cfg)
+    print(f"Weather: {drv.source_label}")
 
     if scenario_name == "worst_case":
-        out = run_worst_case(house, drv.worst_case_per_month())
+        out = run_worst_case(house, drv.worst_case_per_month(), drv.title_label)
     else:
-        out = run_full_year(house, drv.full_year())
+        out = run_full_year(house, drv.full_year(), drv.title_label)
 
     print(f"\nPlot saved to: {out}")
 

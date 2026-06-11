@@ -1,6 +1,13 @@
 # Home heat pump simulator configuration.
 # Edit these values to change the scenario, then run: .venv/bin/python home_heat_sim.py
 
+[weather]
+# Calendar year for hourly outdoor temps (Open-Meteo ERA5, lat/lon below).
+# Set to 0 to use the PVGIS Typical Meteorological Year instead.
+year = 2023
+latitude = 48.351    # Ulm area (matches source_data/tmy_*.csv)
+longitude = 10.164
+
 [operation]
 # Temperature spread between flow and return water (K). hplib default is 5.
 delta_t_k = 5.0

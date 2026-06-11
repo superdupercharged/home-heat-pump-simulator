@@ -59,12 +59,42 @@ All config files live in `config/`:
 
 | File | Purpose |
 |------|---------|
-| `config/config.toml` | Heat pump, heating curve (`[heating_curve]`), electricity price |
+| `config/config.toml` | Heat pump, heating curve (`[heating_curve]`), electricity price, **weather year** (`[weather]`) |
 | `config/house_config_rehgraeble.toml` | Your house: rooms, U-values, ventilation, DHW |
 | `config/house_config.toml` | Generic template house |
 
+### Weather
+
+Set the calendar year in `config/config.toml`:
+
+```toml
+[weather]
+year = 2023          # Open-Meteo ERA5 hourly temps for this year
+latitude = 48.351    # Ulm area
+longitude = 10.164
+```
+
+Use `year = 0` for the old PVGIS Typical Meteorological Year (stitched months from 2005–2023). On first use of a new year, hourly data is downloaded from Open-Meteo and cached in `source_data/weather_{lat}_{lon}_{year}.csv`.
+
 Each heated level auto-gets a **circulation proxy** when `[building]` footprint is set: `net floor = footprint × (1 − wall_area_fraction) − sum(room areas)`. `wall_area_fraction` (default 0.12) is the wall/partition share. Covers Flur/Verkehrsfläche without listing every zone. No exterior walls, no radiators; floor/ceiling + infiltration losses only.
 
-The heating curve (`[heating_curve]` in `config/config.toml`) sets flow temperature from a damped outdoor temp (default 24 h lag). `flow_at_design_c` is the design-point Vorlauf (NAT) and is also used by `room_check.py`. Plots: `output/heating_curve.png`, `output/sim_yearly_temps.png`.
+The heating curve (`[heating_curve]` in `config/config.toml`) sets flow temperature from a damped outdoor temp (default 24 h lag). `flow_at_design_c` is the design-point Vorlauf (NAT) and is also used by `room_check.py`. Plot: `output/sim_yearly_temps.png` (includes the curve).
 
 Datasheets and weather data live in `source_data/`.
+
+## Website (GitHub Pages)
+
+Static dashboard with all plots, annual stats, and an electricity-price slider.
+
+```bash
+# Build site (runs simulations + copies plots to docs/)
+HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python build_docs.py
+
+# Preview locally
+cd docs && python3 -m http.server 8000
+# → http://localhost:8000
+```
+
+To publish on GitHub Pages: repo **Settings → Pages → Build from branch → main → `/docs`**, then push `docs/` (including `assets/` and `stats.json`).
+
+Re-run `build_docs.py` after changing configs to refresh plots and numbers.

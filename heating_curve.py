@@ -193,7 +193,8 @@ def plot_heating_curve(curve: HeatingCurve, path: Path | None = None,
 
 
 def plot_yearly_profile(curve: HeatingCurve, df, result: dict,
-                        path: Path | None = None) -> Path:
+                        path: Path | None = None,
+                        weather_label: str = "") -> Path:
     """Year timeline: outdoor T, flow T, COP; small heating-curve inset below."""
     path = path or OUTPUT_DIR / "sim_yearly_temps.png"
     path.parent.mkdir(exist_ok=True)
@@ -247,8 +248,9 @@ def plot_yearly_profile(curve: HeatingCurve, df, result: dict,
     ax_temp.set_xlim(0, n_days - 1)
     ax_temp.grid(alpha=0.3)
     ax_temp.legend(loc="upper center", bbox_to_anchor=(0.55, 0.98), fontsize=9)
+    weather_note = f"{weather_label}  |  " if weather_label else ""
     ax_temp.set_title(
-        f"Temperaturen  |  {curve.label()}",
+        f"{weather_note}Temperaturen  |  {curve.label()}",
         fontsize=10,
     )
     plt.setp(ax_temp.get_xticklabels(), visible=False)

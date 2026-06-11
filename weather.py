@@ -1,33 +1,48 @@
 """Weather driver for the heat pump simulator.
 
-Reads a PVGIS TMY (Typical Meteorological Year) CSV and exposes two scenarios:
+Two data sources (selected via ``[weather]`` in ``config/config.toml``):
 
-  - full_year()            : the full 8760-hour outdoor temperature series
-  - worst_case_per_month() : the single coldest hour of each month (12 points),
-                             a quick "worst case" stress test
+  - **Calendar year** (``year = 2023``): hourly 2 m air temperature from
+    Open-Meteo ERA5 archive for the configured lat/lon. Cached under
+    ``source_data/weather_{lat}_{lon}_{year}.csv`` after the first fetch.
+  - **PVGIS TMY** (``year = 0``): stitched Typical Meteorological Year from
+    ``source_data/tmy_48.351_10.164_2005_2023.csv``.
 
-The PVGIS file has a metadata header, then a data block starting at the
-``time(UTC),T2m,...`` line, then a provenance footer. T2m is the 2 m air
-temperature in °C.
+Both expose:
+
+  - full_year()            : the full hourly outdoor temperature series
+  - worst_case_per_month() : the single coldest hour of each month (12 points)
 """
 
 from __future__ import annotations
 
+import csv
 import io
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
 
-DEFAULT_TMY = Path(__file__).with_name("source_data") / "tmy_48.351_10.164_2005_2023.csv"
+SOURCE_DIR = Path(__file__).with_name("source_data")
+DEFAULT_TMY = SOURCE_DIR / "tmy_48.351_10.164_2005_2023.csv"
+OPEN_METEO_ARCHIVE = "https://archive-api.open-meteo.com/v1/archive"
+
+
+def _normalize(df: pd.DataFrame) -> pd.DataFrame:
+    """Add running hour/day indices used by the simulation."""
+    df = df.reset_index(drop=True)
+    df["hour"] = df.index
+    df["day"] = df["hour"] // 24
+    df["month"] = df["time"].dt.month
+    return df
 
 
 def load_tmy(path: Path = DEFAULT_TMY) -> pd.DataFrame:
-    """Parse a PVGIS TMY CSV into a tidy hourly DataFrame.
-
-    Returns columns: ``time`` (datetime), ``month`` (1-12), ``hour`` (0-based
-    running index), ``day`` (0-based running day index), ``t_out`` (°C).
-    """
+    """Parse a PVGIS TMY CSV into a tidy hourly DataFrame."""
     lines = Path(path).read_text().splitlines()
     start = next(i for i, ln in enumerate(lines) if ln.startswith("time(UTC)"))
     end = start + 1
@@ -39,11 +54,91 @@ def load_tmy(path: Path = DEFAULT_TMY) -> pd.DataFrame:
     df = pd.DataFrame()
     df["time"] = pd.to_datetime(raw["time(UTC)"], format="%Y%m%d:%H%M")
     df["t_out"] = raw["T2m"].astype(float)
-    df = df.reset_index(drop=True)
-    df["hour"] = df.index            # running hour index 0..8759 (calendar order)
-    df["day"] = df["hour"] // 24     # running day index 0..364
-    df["month"] = df["time"].dt.month
+    return _normalize(df)
+
+
+def weather_cache_path(latitude: float, longitude: float, year: int) -> Path:
+    return SOURCE_DIR / f"weather_{latitude:.3f}_{longitude:.3f}_{year}.csv"
+
+
+def fetch_calendar_year(latitude: float, longitude: float, year: int) -> pd.DataFrame:
+    """Download hourly 2 m temperature for one calendar year (UTC)."""
+    params = urllib.parse.urlencode({
+        "latitude": latitude,
+        "longitude": longitude,
+        "start_date": f"{year}-01-01",
+        "end_date": f"{year}-12-31",
+        "hourly": "temperature_2m",
+        "timezone": "UTC",
+    })
+    url = f"{OPEN_METEO_ARCHIVE}?{params}"
+    try:
+        with urllib.request.urlopen(url, timeout=120) as resp:
+            payload = json.load(resp)
+    except urllib.error.URLError as exc:
+        cache = weather_cache_path(latitude, longitude, year)
+        raise RuntimeError(
+            f"Could not download weather for {year} ({latitude}, {longitude}): {exc}\n"
+            f"If you are offline, place a cached CSV at {cache}"
+        ) from exc
+
+    times = payload["hourly"]["time"]
+    temps = payload["hourly"]["temperature_2m"]
+    if len(times) != len(temps):
+        raise RuntimeError("Open-Meteo response length mismatch")
+    expected = 8784 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 8760
+    if len(times) not in (8760, 8784):
+        raise RuntimeError(f"Expected {expected} hourly values for {year}, got {len(times)}")
+
+    df = pd.DataFrame({
+        "time": pd.to_datetime(times, utc=True),
+        "t_out": pd.array(temps, dtype=float),
+    })
+    return _normalize(df)
+
+
+def save_weather_cache(df: pd.DataFrame, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["time", "t_out"])
+        for row in df.itertuples(index=False):
+            writer.writerow([row.time.isoformat(), f"{row.t_out:.2f}"])
+
+
+def load_weather_cache(path: Path) -> pd.DataFrame:
+    raw = pd.read_csv(path)
+    df = pd.DataFrame()
+    df["time"] = pd.to_datetime(raw["time"], utc=True)
+    df["t_out"] = raw["t_out"].astype(float)
+    return _normalize(df)
+
+
+def load_calendar_year(latitude: float, longitude: float, year: int,
+                       *, fetch: bool = True) -> pd.DataFrame:
+    """Load one calendar year from cache, downloading on first use."""
+    cache = weather_cache_path(latitude, longitude, year)
+    if cache.exists():
+        return load_weather_cache(cache)
+    if not fetch:
+        raise FileNotFoundError(f"Weather cache missing: {cache}")
+    df = fetch_calendar_year(latitude, longitude, year)
+    save_weather_cache(df, cache)
     return df
+
+
+def parse_weather_config(cfg: dict) -> dict:
+    """Return normalized weather settings from config.toml."""
+    w = cfg.get("weather", {})
+    year = w.get("year", 2023)
+    if isinstance(year, str) and year.lower() == "tmy":
+        year = 0
+    return {
+        "year": int(year),
+        "latitude": float(w.get("latitude", 48.351)),
+        "longitude": float(w.get("longitude", 10.164)),
+        "tmy_path": Path(w.get("tmy_path", DEFAULT_TMY)),
+    }
 
 
 @dataclass
@@ -57,11 +152,28 @@ class WeatherScenario:
 
 
 class WeatherDriver:
-    def __init__(self, path: Path = DEFAULT_TMY):
-        self.df = load_tmy(path)
+    def __init__(self, cfg: dict | None = None):
+        settings = parse_weather_config(cfg or {})
+        year = settings["year"]
+        if year == 0:
+            self.source_label = "PVGIS TMY (2005–2023 stitched months)"
+            self.title_label = "TMY"
+            self.weather_year = None
+            self.df = load_tmy(settings["tmy_path"])
+        else:
+            self.weather_year = year
+            self.source_label = f"calendar year {year} (Open-Meteo ERA5)"
+            self.title_label = str(year)
+            self.df = load_calendar_year(
+                settings["latitude"], settings["longitude"], year,
+            )
+
+    @classmethod
+    def from_config(cls, cfg: dict) -> "WeatherDriver":
+        return cls(cfg)
 
     def full_year(self) -> WeatherScenario:
-        """The full hourly outdoor temperature series (8760 h)."""
+        """The full hourly outdoor temperature series."""
         return WeatherScenario(name="full_year", data=self.df.copy(),
                                dt_hours=1.0, use_inertia=True)
 
@@ -78,10 +190,13 @@ class WeatherDriver:
 
 
 if __name__ == "__main__":
-    drv = WeatherDriver()
+    from home_heat_sim import load_config
+
+    drv = WeatherDriver.from_config(load_config())
     yr = drv.full_year().data
+    print(f"Weather source: {drv.source_label}")
     print(f"Loaded {len(yr)} hourly records "
-          f"({yr['time'].min()} ... {yr['time'].max()})")
+          f"({yr['time'].min()} … {yr['time'].max()})")
     print(f"Outdoor temp: min {yr['t_out'].min():.1f} °C, "
           f"mean {yr['t_out'].mean():.1f} °C, max {yr['t_out'].max():.1f} °C\n")
     print("Coldest hour per month:")

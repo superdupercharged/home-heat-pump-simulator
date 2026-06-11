@@ -28,7 +28,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import FancyBboxPatch  # noqa: E402
 
-from heating_curve import HeatingCurve, plot_heating_curve, plot_yearly_profile  # noqa: E402
+from heating_curve import HeatingCurve, plot_yearly_profile  # noqa: E402
 from home_heat_sim import FittedHeatPump, HeatPumpSpec, load_config  # noqa: E402
 from house_model import House, load_house_config  # noqa: E402
 from weather import WeatherDriver  # noqa: E402
@@ -90,7 +90,7 @@ def compute_dhw(house_cfg, hp, df):
 
 
 def run_full_year(house, hp, scenario, heating_curve, price, house_label,
-                  dhw=None) -> Path:
+                  dhw=None, weather_label: str = "") -> Path:
     df = scenario.data
     r = couple(house, hp, scenario, heating_curve)
     dt = scenario.dt_hours
@@ -194,8 +194,9 @@ def run_full_year(house, hp, scenario, heating_curve, price, house_label,
     ax1.plot(range(n_days), el_day, color="#1f6feb", lw=1.2,
              label="electricity used" + label_suffix)
     flow_note = f"avg VL {avg_flow:.0f}°C" if heating.any() else heating_curve.label()
-    ax1.set_title(f"Daily energy: heat vs electricity  |  house: {house_label}  |  "
-                  f"{flow_note}, SCOP {scop:.2f}")
+    weather_note = f"{weather_label}  |  " if weather_label else ""
+    ax1.set_title(f"{weather_note}Daily energy: heat vs electricity  |  "
+                  f"house: {house_label}  |  {flow_note}, SCOP {scop:.2f}")
     ax1.set_ylabel("energy (kWh/day)")
     ax1.set_xlim(0, n_days - 1)
     month_starts = df.groupby("month")["day"].min()
@@ -274,12 +275,13 @@ def run_full_year(house, hp, scenario, heating_curve, price, house_label,
     fig.savefig(out, dpi=110)
     plt.close(fig)
 
-    yearly_out = plot_yearly_profile(heating_curve, df, r)
+    yearly_out = plot_yearly_profile(heating_curve, df, r, weather_label=weather_label)
     print(f"Yearly temp plot    : {yearly_out}")
     return out
 
 
-def run_worst_case(house, hp, scenario, heating_curve, house_label) -> Path:
+def run_worst_case(house, hp, scenario, heating_curve, house_label,
+                   weather_label: str = "") -> Path:
     df = scenario.data
     r = couple(house, hp, scenario, heating_curve)
 
@@ -308,7 +310,9 @@ def run_worst_case(house, hp, scenario, heating_curve, house_label) -> Path:
     for i, v in enumerate(el_kw):
         ax.text(i, v + 0.05, f"{r['cop'][i]:.1f}", ha="center", va="bottom",
                 fontsize=8, color="#444")
-    ax.set_title(f"Worst-case electrical draw per month  |  house: {house_label}  |  "
+    weather_note = f"{weather_label}  |  " if weather_label else ""
+    ax.set_title(f"{weather_note}Worst-case electrical draw per month  |  "
+                 f"house: {house_label}  |  "
                  f"{heating_curve.label()} (COP labeled)")
     ax.set_ylabel("electrical power (kW)")
     ax.grid(axis="y", alpha=0.3)
@@ -340,18 +344,17 @@ def main() -> None:
     house = House.from_config(house_cfg)
     heating_curve = HeatingCurve.from_config(cfg, house_cfg)
     house_label = Path(os.environ.get("HOUSE_CONFIG", "house_config.toml")).name
-    drv = WeatherDriver()
-
-    curve_plot = plot_heating_curve(heating_curve)
-    print(f"Heating curve plot  : {curve_plot}")
+    drv = WeatherDriver.from_config(cfg)
+    print(f"Weather              : {drv.source_label}")
 
     if scenario_name == "worst_case":
         out = run_worst_case(house, hp, drv.worst_case_per_month(), heating_curve,
-                             house_label)
+                             house_label, drv.title_label)
     else:
         full = drv.full_year()
         dhw = compute_dhw(house_cfg, hp, full.data)
-        out = run_full_year(house, hp, full, heating_curve, price, house_label, dhw)
+        out = run_full_year(house, hp, full, heating_curve, price, house_label, dhw,
+                            drv.title_label)
 
     print(f"Simulation plot     : {out}")
 
