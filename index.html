@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home Heat Pump Simulator</title>
+  <meta name="description" content="Hourly heat pump simulation for a South Germany home — annual energy, JAZ, and plots.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Home Heat Pump Simulator</h1>
+    <p>Hourly simulation for a South Germany home (Ulm–Memmingen weather). Per-room heat loss, weather-compensated flow temperature, Midea R290 heat pump, DHW &amp; ventilation.</p>
+    <p class="meta" id="meta"></p>
+  </header>
+
+  <main>
+    <div id="load-error" class="error" hidden>
+      Could not load <code>stats.json</code>. Run
+      <code>HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python build_docs.py</code>
+      first, then serve this folder with a local HTTP server (not <code>file://</code>).
+    </div>
+
+    <div id="content" hidden>
+      <div class="stats-grid" id="stats-grid"></div>
+
+      <div class="panel">
+        <h2>Electricity price (what-if)</h2>
+        <p>Drag the slider to see how the annual bill changes. Heat demand and COP stay the same — only the tariff changes.</p>
+        <div class="slider-row">
+          <label for="price-slider">Price (EUR/kWh)</label>
+          <input type="range" id="price-slider" min="0.10" max="0.50" step="0.01">
+          <output id="price-output"></output>
+        </div>
+        <div class="slider-row" style="margin-top: 0.75rem;">
+          <label>Annual bill</label>
+          <output id="cost-output" style="flex:1;text-align:left;font-size:1.1rem;color:var(--green);"></output>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Monthly heating</h2>
+        <table class="monthly" id="monthly-table">
+          <thead>
+            <tr><th>Month</th><th>Heat</th><th>Elec</th><th>COP</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div id="plots"></div>
+    </div>
+  </main>
+
+  <footer>
+    <a href="https://github.com/superdupercharged/home-heat-pump-simulator">Source on GitHub</a>
+    · Built with <code>build_docs.py</code>
+  </footer>
+
+  <script>
+    const PLOT_DESC = {
+      "sim_full_year.png": "Daily thermal energy delivered vs electricity consumed (space heating + DHW).",
+      "sim_yearly_temps.png": "Outdoor & flow temperatures, heating curve, daily heat demand vs heat pump capacity, and system COP.",
+      "house_full_year.png": "House heat demand only — no heat pump COP or electricity.",
+      "radiator_check.png": "Radiator output at design flow vs room design load. Underpowered rooms need higher flow or bigger radiators.",
+      "radiator_room_energy.png": "Design-point heat loss split: transmission, infiltration, and window airing per room.",
+      "sim_worst_case.png": "Peak electrical draw in the coldest hour of each month (heat pump + backup heater).",
+      "house_worst_case.png": "Peak house thermal load in the coldest hour of each month.",
+    };
+
+    let stats = null;
+
+    function fmt(n, digits = 0) {
+      return n.toLocaleString("de-DE", { maximumFractionDigits: digits, minimumFractionDigits: digits });
+    }
+
+    function renderStats(s) {
+      const cards = [
+        { value: fmt(s.combined.elec_kwh), label: "Total elec. (kWh/yr)" },
+        { value: fmt(s.combined.cost_eur_per_year) + " €", label: "Bill (EUR/yr)" },
+        { value: s.heating.scop, label: "JAZ / SCOP" },
+        { value: fmt(s.heating.heat_kwh), label: "Space heat (kWh)" },
+        { value: s.heating.peak_el_kw + " kW", label: "Peak draw" },
+        { value: s.heating.avg_flow_c + " °C", label: "Avg flow" },
+      ];
+      if (s.dhw) {
+        cards.push({ value: fmt(s.dhw.elec_kwh), label: "DHW elec. (kWh)" });
+      }
+      document.getElementById("stats-grid").innerHTML = cards.map(c =>
+        `<div class="stat-card"><div class="value">${c.value}</div><div class="label">${c.label}</div></div>`
+      ).join("");
+
+      document.getElementById("meta").textContent =
+        `${s.house_config} · ${s.weather || "weather"} · ${s.heat_pump.split("(")[0].trim()} · ${s.heating_curve} · generated ${s.generated_at}`;
+
+      const tbody = document.querySelector("#monthly-table tbody");
+      tbody.innerHTML = s.monthly.map(m =>
+        `<tr><td>${m.month}</td><td>${fmt(m.heat_kwh)} kWh</td><td>${fmt(m.elec_kwh)} kWh</td><td>${m.cop.toFixed(2)}</td></tr>`
+      ).join("");
+
+      document.getElementById("plots").innerHTML = s.plots.map(p => `
+        <section class="plot-section">
+          <h2>${p.title}</h2>
+          <p class="desc">${PLOT_DESC[p.file] || ""}</p>
+          <img src="assets/${p.file}" alt="${p.title}" loading="lazy">
+        </section>
+      `).join("");
+    }
+
+    function setupPriceSlider(s) {
+      const slider = document.getElementById("price-slider");
+      const priceOut = document.getElementById("price-output");
+      const costOut = document.getElementById("cost-output");
+      const basePrice = s.electricity_price_eur_per_kwh;
+      const totalKwh = s.combined.elec_kwh;
+
+      slider.value = basePrice;
+      function update() {
+        const p = parseFloat(slider.value);
+        priceOut.textContent = p.toFixed(2) + " EUR/kWh";
+        const yearly = totalKwh * p;
+        costOut.textContent = fmt(Math.round(yearly)) + " EUR/yr  (~" + fmt(Math.round(yearly / 12)) + " EUR/mo)";
+      }
+      slider.addEventListener("input", update);
+      update();
+    }
+
+    async function init() {
+      try {
+        const resp = await fetch("stats.json");
+        if (!resp.ok) throw new Error(resp.statusText);
+        stats = await resp.json();
+        document.getElementById("content").hidden = false;
+        renderStats(stats);
+        setupPriceSlider(stats);
+      } catch (e) {
+        document.getElementById("load-error").hidden = false;
+        console.error(e);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
