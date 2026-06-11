@@ -22,7 +22,7 @@ Main entry point. Prints annual energy, JAZ, DHW, electricity bill, and saves a 
 # Your house (Rehgräble) — use this for real results
 HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python run_simulation.py full_year
 
-# Worst-case month (coldest hour per month)
+# Worst-case month (coldest hour per month from PVGIS TMY 2005–2023)
 HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python run_simulation.py worst_case
 ```
 
@@ -74,7 +74,9 @@ latitude = 48.351    # Ulm area
 longitude = 10.164
 ```
 
-Use `year = 0` for the old PVGIS Typical Meteorological Year (stitched months from 2005–2023). On first use of a new year, hourly data is downloaded from Open-Meteo and cached in `source_data/weather_{lat}_{lon}_{year}.csv`.
+Use `year = 0` to run the full-year simulation on the PVGIS Typical Meteorological Year (stitched months from 2005–2023) instead of a single calendar year. On first use of a new year, hourly data is downloaded from Open-Meteo and cached in `source_data/weather_{lat}_{lon}_{year}.csv`.
+
+The **worst-case** plots (`sim_worst_case.png`, `house_worst_case.png`) always use the TMY coldest hour per month from 2005–2023, regardless of `[weather] year`.
 
 Each heated level auto-gets a **circulation proxy** when `[building]` footprint is set: `net floor = footprint × (1 − wall_area_fraction) − sum(room areas)`. `wall_area_fraction` (default 0.12) is the wall/partition share. Covers Flur/Verkehrsfläche without listing every zone. No exterior walls, no radiators; floor/ceiling + infiltration losses only.
 

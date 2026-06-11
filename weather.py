@@ -11,7 +11,9 @@ Two data sources (selected via ``[weather]`` in ``config/config.toml``):
 Both expose:
 
   - full_year()            : the full hourly outdoor temperature series
-  - worst_case_per_month() : the single coldest hour of each month (12 points)
+  - worst_case_per_month() : coldest hour of each month from the PVGIS TMY
+                             (2005–2023 stitched months), always — independent
+                             of the calendar year used for full_year()
 """
 
 from __future__ import annotations
@@ -154,12 +156,17 @@ class WeatherScenario:
 class WeatherDriver:
     def __init__(self, cfg: dict | None = None):
         settings = parse_weather_config(cfg or {})
+        self.tmy_path = settings["tmy_path"]
+        self.tmy_df = load_tmy(self.tmy_path)
+        self.worst_case_source_label = "PVGIS TMY (2005–2023, coldest hour per month)"
+        self.worst_case_title_label = "TMY 2005–2023"
+
         year = settings["year"]
         if year == 0:
             self.source_label = "PVGIS TMY (2005–2023 stitched months)"
             self.title_label = "TMY"
             self.weather_year = None
-            self.df = load_tmy(settings["tmy_path"])
+            self.df = self.tmy_df
         else:
             self.weather_year = year
             self.source_label = f"calendar year {year} (Open-Meteo ERA5)"
@@ -178,13 +185,14 @@ class WeatherDriver:
                                dt_hours=1.0, use_inertia=True)
 
     def worst_case_per_month(self) -> WeatherScenario:
-        """Coldest hour of each month (12 points).
+        """Coldest hour of each month (12 points) from the PVGIS TMY.
 
-        These points are discontinuous in time, so buffer-temperature inertia
-        is disabled for this scenario (each point is treated as steady-state).
+        Always uses the 2005–2023 stitched TMY, not the calendar year
+        configured for full_year(). Points are discontinuous in time, so
+        buffer-temperature inertia is disabled (steady-state per point).
         """
-        idx = self.df.groupby("month")["t_out"].idxmin()
-        wc = self.df.loc[idx].sort_values("month").reset_index(drop=True)
+        idx = self.tmy_df.groupby("month")["t_out"].idxmin()
+        wc = self.tmy_df.loc[idx].sort_values("month").reset_index(drop=True)
         return WeatherScenario(name="worst_case_per_month", data=wc,
                                dt_hours=1.0, use_inertia=False)
 

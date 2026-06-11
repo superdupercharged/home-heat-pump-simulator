@@ -304,17 +304,25 @@ def run_worst_case(house, hp, scenario, heating_curve, house_label,
     hp_kw = r["p_el_hp_w"] / 1000
     bk_kw = r["backup_w"] / 1000
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(10, 5.5))
     ax.bar(months, hp_kw, color="#1f6feb", label="heat pump electricity")
     ax.bar(months, bk_kw, bottom=hp_kw, color="#cf222e", label="backup heater")
     for i, v in enumerate(el_kw):
-        ax.text(i, v + 0.05, f"{r['cop'][i]:.1f}", ha="center", va="bottom",
-                fontsize=8, color="#444")
-    weather_note = f"{weather_label}  |  " if weather_label else ""
-    ax.set_title(f"{weather_note}Worst-case electrical draw per month  |  "
-                 f"house: {house_label}  |  "
-                 f"{heating_curve.label()} (COP labeled)")
+        if v > 0.1:
+            ax.text(i, v + 0.12, f"{r['cop'][i]:.1f}", ha="center", va="bottom",
+                    fontsize=8, color="#444")
+
+    weather_note = f"{weather_label}  ·  " if weather_label else ""
+    ax.set_title(
+        "Worst-case electrical draw per month\n"
+        f"{weather_note}{heating_curve.label()}  ·  {house_label}",
+        fontsize=10,
+        linespacing=1.35,
+    )
     ax.set_ylabel("electrical power (kW)")
+    peak = float(el_kw.max())
+    y_top = int(np.ceil((peak + 1.2) / 2)) * 2
+    ax.set_ylim(0, max(y_top, 10))
     ax.grid(axis="y", alpha=0.3)
     ax.legend(loc="upper right")
 
@@ -325,7 +333,7 @@ def run_worst_case(house, hp, scenario, heating_curve, house_label,
     ax.text(0.015, 0.97, info, transform=ax.transAxes, ha="left", va="top",
             fontsize=9, family="monospace",
             bbox=dict(boxstyle="round", fc="white", ec="#cf222e", alpha=0.9))
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
     out = OUTPUT_DIR / "sim_worst_case.png"
     fig.savefig(out, dpi=110)
     plt.close(fig)
@@ -348,8 +356,9 @@ def main() -> None:
     print(f"Weather              : {drv.source_label}")
 
     if scenario_name == "worst_case":
+        print(f"Weather (worst case) : {drv.worst_case_source_label}")
         out = run_worst_case(house, hp, drv.worst_case_per_month(), heating_curve,
-                             house_label, drv.title_label)
+                             house_label, drv.worst_case_title_label)
     else:
         full = drv.full_year()
         dhw = compute_dhw(house_cfg, hp, full.data)

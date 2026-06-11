@@ -108,16 +108,25 @@ def run_worst_case(house: House, scenario, weather_label: str = "") -> Path:
           f" at {outdoor[worst_i]:.1f} °C -> {power_kw[worst_i]:.2f} kW")
 
     months = [calendar.month_abbr[int(m)] for m in df["month"]]
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(10, 5.5))
     bars = ax.bar(months, power_kw, color="#1f6feb")
     bars[worst_i].set_color("#cf222e")
     for i, v in enumerate(power_kw):
-        ax.text(i, v + 0.05, f"{v:.1f}", ha="center", va="bottom", fontsize=8)
-    weather_note = f"{weather_label}  |  " if weather_label else ""
-    ax.set_title(f"Worst-case heating power per month  |  {weather_note}coldest hour")
+        if v > 0.1:
+            ax.text(i, v + 0.12, f"{v:.1f}", ha="center", va="bottom", fontsize=8)
+    weather_note = f"{weather_label}  ·  " if weather_label else ""
+    ax.set_title(
+        "Worst-case heating power per month\n"
+        f"{weather_note}coldest hour per month (TMY)",
+        fontsize=10,
+        linespacing=1.35,
+    )
     ax.set_ylabel("power (kW)")
+    peak = float(power_kw.max())
+    y_top = int(np.ceil((peak + 1.2) / 2)) * 2
+    ax.set_ylim(0, max(y_top, 10))
     ax.grid(axis="y", alpha=0.3)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
     out = OUTPUT_DIR / "house_worst_case.png"
     fig.savefig(out, dpi=110)
     plt.close(fig)
@@ -133,7 +142,8 @@ def main() -> None:
     print(f"Weather: {drv.source_label}")
 
     if scenario_name == "worst_case":
-        out = run_worst_case(house, drv.worst_case_per_month(), drv.title_label)
+        print(f"Weather (worst case): {drv.worst_case_source_label}")
+        out = run_worst_case(house, drv.worst_case_per_month(), drv.worst_case_title_label)
     else:
         out = run_full_year(house, drv.full_year(), drv.title_label)
 
