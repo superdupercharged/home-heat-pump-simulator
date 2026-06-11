@@ -86,15 +86,34 @@ Datasheets and weather data live in `source_data/`.
 
 Static dashboard with all plots, annual stats, and an electricity-price slider.
 
-```bash
-# Build site (runs simulations + copies plots to docs/)
-HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python build_docs.py
+### GitHub setup (one-time)
 
-# Preview locally
+Repo **Settings → Pages**:
+
+| Setting | Value |
+|---------|-------|
+| Source | Deploy from a branch |
+| Branch | **`gh-pages`** |
+| Folder | **`/ (root)`** |
+
+The `gh-pages` branch is created automatically by the deploy workflow (or by `deploy_docs.sh`). `main` stays source code only.
+
+### Deploy
+
+**Automatic (recommended):** push to `main` — the [deploy workflow](.github/workflows/deploy-pages.yml) runs `build_docs.py` and updates `gh-pages`.
+
+**Manual:**
+
+```bash
+./deploy_docs.sh
+```
+
+### Local preview
+
+```bash
+HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python build_docs.py
 cd docs && python3 -m http.server 8000
 # → http://localhost:8000
 ```
 
-To publish on GitHub Pages: repo **Settings → Pages → Build from branch → main → `/docs`**, then push `docs/` (including `assets/` and `stats.json`).
-
-Re-run `build_docs.py` after changing configs to refresh plots and numbers.
+Live site: **https://superdupercharged.github.io/home-heat-pump-simulator/**

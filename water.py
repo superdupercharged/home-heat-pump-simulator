@@ -16,15 +16,30 @@ import openpyxl
 
 DEFAULT_WATER_XLSX = (Path(__file__).with_name("source_data")
                       / "Strom_Wasser_Verbrauch.xlsx")
+DEFAULT_WATER_JSON = (Path(__file__).with_name("source_data")
+                      / "water_monthly_default.json")
 
 # Specific heat of water ≈ 1.163 kWh per m³ per K (4.186 kJ/(kg·K)).
 WATER_KWH_PER_M3_K = 1.163
+
+
+def _load_monthly_water_json(path: Path) -> dict[int, float]:
+    import json
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {int(k): float(v) for k, v in data.items()}
 
 
 def load_monthly_water_m3(path: Path = DEFAULT_WATER_XLSX, sheet: str = "Wasser",
                           start_row: int = 31, date_col: int = 1,
                           consumption_col: int = 3) -> dict[int, float]:
     """Typical monthly water use [m³], averaged per calendar month over years."""
+    if not path.exists():
+        if DEFAULT_WATER_JSON.exists():
+            return _load_monthly_water_json(DEFAULT_WATER_JSON)
+        raise FileNotFoundError(
+            f"Water profile not found: {path} (and no {DEFAULT_WATER_JSON.name})"
+        )
     wb = openpyxl.load_workbook(path, data_only=True)
     ws = wb[sheet]
     buckets: dict[int, list] = defaultdict(list)
