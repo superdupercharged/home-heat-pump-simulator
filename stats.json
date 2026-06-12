@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-06-11 21:19 UTC",
+  "generated_at": "2026-06-12 04:31 UTC",
   "house_config": "house_config_rehgraeble.toml",
-  "weather": "calendar year 2023 (Open-Meteo ERA5)",
-  "weather_year": 2023,
+  "weather": "calendar year 2022 (Open-Meteo ERA5)",
+  "weather_year": 2022,
   "heat_pump": "Midea M-Thermal Nature Mono R290 16kW (MHC-V16WD2RN7-BER90)",
   "heating_curve": "Heizkurve: 25\u00b0C@20\u00b0C \u2192 55\u00b0C@-12\u00b0C, Neigung 0.94, ged\u00e4mpft 24h",
   "heating_curve_params": {
@@ -16,59 +16,59 @@
   },
   "electricity_price_eur_per_kwh": 0.25,
   "heating": {
-    "heat_kwh": 22832,
-    "elec_kwh": 6732,
-    "scop": 3.39,
-    "hp_elec_kwh": 6724,
-    "backup_kwh": 8,
-    "peak_el_kw": 9.93,
-    "backup_hours": 7,
-    "avg_flow_c": 38.9
+    "heat_kwh": 23875,
+    "elec_kwh": 7251,
+    "scop": 3.29,
+    "hp_elec_kwh": 7239,
+    "backup_kwh": 12,
+    "peak_el_kw": 10.15,
+    "backup_hours": 13,
+    "avg_flow_c": 38.7
   },
   "dhw": {
     "heat_kwh": 1813,
-    "elec_kwh": 582,
-    "scop": 3.11
+    "elec_kwh": 595,
+    "scop": 3.05
   },
   "combined": {
-    "elec_kwh": 7314,
-    "cost_eur_per_year": 1828,
-    "cost_eur_per_month": 152
+    "elec_kwh": 7846,
+    "cost_eur_per_year": 1962,
+    "cost_eur_per_month": 163
   },
   "house_demand": {
-    "heat_kwh": 22832,
-    "peak_kw": 9.93
+    "heat_kwh": 23875,
+    "peak_kw": 10.15
   },
   "monthly": [
     {
       "month": "Jan",
-      "heat_kwh": 3923,
-      "elec_kwh": 1266,
-      "cop": 3.1
+      "heat_kwh": 4256,
+      "elec_kwh": 1453,
+      "cop": 2.93
     },
     {
       "month": "Feb",
-      "heat_kwh": 3617,
-      "elec_kwh": 1216,
-      "cop": 2.97
+      "heat_kwh": 3368,
+      "elec_kwh": 988,
+      "cop": 3.41
     },
     {
       "month": "Mar",
-      "heat_kwh": 3179,
-      "elec_kwh": 863,
-      "cop": 3.68
+      "heat_kwh": 3586,
+      "elec_kwh": 1102,
+      "cop": 3.26
     },
     {
       "month": "Apr",
-      "heat_kwh": 2813,
-      "elec_kwh": 702,
-      "cop": 4.01
+      "heat_kwh": 2779,
+      "elec_kwh": 709,
+      "cop": 3.92
     },
     {
       "month": "May",
-      "heat_kwh": 907,
-      "elec_kwh": 181,
-      "cop": 5.02
+      "heat_kwh": 729,
+      "elec_kwh": 144,
+      "cop": 5.08
     },
     {
       "month": "Jun",
@@ -96,21 +96,21 @@
     },
     {
       "month": "Oct",
-      "heat_kwh": 1297,
-      "elec_kwh": 282,
-      "cop": 4.59
+      "heat_kwh": 1773,
+      "elec_kwh": 348,
+      "cop": 5.1
     },
     {
       "month": "Nov",
-      "heat_kwh": 3236,
-      "elec_kwh": 878,
-      "cop": 3.68
+      "heat_kwh": 3160,
+      "elec_kwh": 827,
+      "cop": 3.82
     },
     {
       "month": "Dec",
-      "heat_kwh": 3861,
-      "elec_kwh": 1343,
-      "cop": 2.87
+      "heat_kwh": 4224,
+      "elec_kwh": 1680,
+      "cop": 2.51
     }
   ],
   "plots": [
