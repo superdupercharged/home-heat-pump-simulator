@@ -89,40 +89,67 @@ def run_full_year(house: House, scenario, weather_label: str = "") -> Path:
     return out
 
 
-def run_worst_case(house: House, scenario, weather_label: str = "") -> Path:
+def _monthly_peak_indices(months: np.ndarray, values: np.ndarray) -> list[int]:
+    peaks = []
+    for m in range(1, 13):
+        mask = months == m
+        if not mask.any():
+            continue
+        local = np.where(mask)[0]
+        peaks.append(int(local[np.argmax(values[mask])]))
+    return peaks
+
+
+def run_worst_case(house: House, scenario, weather_label: str = "",
+                   manifest: dict | None = None) -> Path:
     df = scenario.data
     outdoor = df["t_out"].to_numpy()
+    months_arr = df["month"].to_numpy()
     active = house.heating_active(df["time"])
     res = house.power_series(outdoor, use_inertia=scenario.use_inertia, active=active)
     power_kw = res["total_w"] / 1000.0
 
-    print("HOUSE MODEL - WORST CASE PER MONTH (coldest hour of each month)\n")
-    print(f"  {'Month':<6}{'T_out':>7}{'Basement':>10}{'Attic':>8}{'Power':>9}")
-    for i, (_, r) in enumerate(df.iterrows()):
-        m = int(r["month"])
-        print(f"  {calendar.month_abbr[m]:<6}{outdoor[i]:>6.1f}°C"
+    print("HOUSE MODEL - WORST CASE YEAR\n")
+    if manifest:
+        print("  Selected coldest calendar month from each historical year:")
+        print(f"  {'Mo':<4}{'Year':>6}{'HDH':>8}{'Spell':>7}{'T_min':>7}")
+        for m in range(1, 13):
+            info = manifest[str(m)]
+            print(f"  {calendar.month_abbr[m]:<4}{info['source_year']:>6}"
+                  f"{info['hdh']:>8.0f}{info['spell_hours']:>5}h"
+                  f"{info['min_temp']:>6.1f}°C")
+        print()
+
+    peak_idx = _monthly_peak_indices(months_arr, res["total_w"])
+    print(f"  {'Month':<6}{'SrcYr':>6}{'T_out':>7}{'Basement':>10}{'Attic':>8}{'Power':>9}")
+    month_labels, peak_kw = [], []
+    for i in peak_idx:
+        m = int(months_arr[i])
+        src = int(df["source_year"].iloc[i]) if "source_year" in df.columns else 0
+        month_labels.append(calendar.month_abbr[m])
+        peak_kw.append(power_kw[i])
+        print(f"  {calendar.month_abbr[m]:<6}{src:>6}{outdoor[i]:>6.1f}°C"
               f"{res['t_basement'][i]:>8.1f}°C{res['t_attic'][i]:>6.1f}°C"
               f"{power_kw[i]:>7.2f}kW")
-    worst_i = int(power_kw.argmax())
-    print(f"\n  Worst month: {calendar.month_abbr[int(df['month'].iloc[worst_i])]}"
-          f" at {outdoor[worst_i]:.1f} °C -> {power_kw[worst_i]:.2f} kW")
+    worst_i = int(np.argmax(peak_kw))
+    print(f"\n  Peak month: {month_labels[worst_i]}"
+          f" at {outdoor[peak_idx[worst_i]]:.1f} °C -> {peak_kw[worst_i]:.2f} kW")
 
-    months = [calendar.month_abbr[int(m)] for m in df["month"]]
     fig, ax = plt.subplots(figsize=(10, 5.5))
-    bars = ax.bar(months, power_kw, color="#1f6feb")
+    bars = ax.bar(month_labels, peak_kw, color="#1f6feb")
     bars[worst_i].set_color("#cf222e")
-    for i, v in enumerate(power_kw):
+    for i, v in enumerate(peak_kw):
         if v > 0.1:
             ax.text(i, v + 0.12, f"{v:.1f}", ha="center", va="bottom", fontsize=8)
     weather_note = f"{weather_label}  ·  " if weather_label else ""
     ax.set_title(
-        "Worst-case heating power per month\n"
-        f"{weather_note}coldest hour per month (TMY)",
+        "Worst-case year — peak heating power per month\n"
+        f"{weather_note}coldest month each from historical range",
         fontsize=10,
         linespacing=1.35,
     )
     ax.set_ylabel("power (kW)")
-    peak = float(power_kw.max())
+    peak = float(max(peak_kw) if peak_kw else 0)
     y_top = int(np.ceil((peak + 1.2) / 2)) * 2
     ax.set_ylim(0, max(y_top, 10))
     ax.grid(axis="y", alpha=0.3)
@@ -143,7 +170,10 @@ def main() -> None:
 
     if scenario_name == "worst_case":
         print(f"Weather (worst case): {drv.worst_case_source_label}")
-        out = run_worst_case(house, drv.worst_case_per_month(), drv.worst_case_title_label)
+        out = run_worst_case(
+            house, drv.worst_case_year(), drv.worst_case_title_label,
+            drv.worst_case_manifest(),
+        )
     else:
         out = run_full_year(house, drv.full_year(), drv.title_label)
 

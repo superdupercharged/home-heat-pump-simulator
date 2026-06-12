@@ -38,7 +38,7 @@ ceiling_u = 0.30   # first-floor ceiling -> attic (estimate)
 design_outdoor_temp_c = -12.0
 
 [operation]
-heating_season_start = "10-15"
+heating_season_start = "10-01"
 heating_season_end   = "05-15"
 
 [ventilation]

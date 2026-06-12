@@ -17,3 +17,8 @@ output/
 .vscode/
 source_data/Thilo Bleumer Midea Angebot.pdf
 source_data/Strom_Wasser_Verbrauch.xlsx
+
+# Weather caches (re-fetch via weather.py fetch_history or on first sim run)
+source_data/weather_*.csv
+source_data/worst_case_year_*.csv
+source_data/worst_case_selection_*.json

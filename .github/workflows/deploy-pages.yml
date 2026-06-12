@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Fetch weather history
+        run: python weather.py fetch_history
+
       - name: Build site
         env:
           HOUSE_CONFIG: house_config_rehgraeble.toml

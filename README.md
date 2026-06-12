@@ -22,7 +22,7 @@ Main entry point. Prints annual energy, JAZ, DHW, electricity bill, and saves a 
 # Your house (Rehgräble) — use this for real results
 HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python run_simulation.py full_year
 
-# Worst-case month (coldest hour per month from PVGIS TMY 2005–2023)
+# Worst-case synthetic year (coldest calendar month from each year 2005–2023)
 HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python run_simulation.py worst_case
 ```
 
@@ -76,7 +76,24 @@ longitude = 10.164
 
 Use `year = 0` to run the full-year simulation on the PVGIS Typical Meteorological Year (stitched months from 2005–2023) instead of a single calendar year. On first use of a new year, hourly data is downloaded from Open-Meteo and cached in `source_data/weather_{lat}_{lon}_{year}.csv`.
 
-The **worst-case** plots (`sim_worst_case.png`, `house_worst_case.png`) always use the TMY coldest hour per month from 2005–2023, regardless of `[weather] year`.
+The **worst-case** plots (`sim_worst_case.png`, `house_worst_case.png`) stitch a synthetic year from the coldest calendar month in each year of `[weather.worst_case]` (default 2005–2023). Each candidate month is scored by:
+
+1. **Heating degree hours** (duration × severity, base 15 °C)
+2. **Longest cold spell** below 0 °C (tie-break)
+3. **Minimum temperature** (tie-break)
+
+The full hourly dataset (~8760 h) is run through the simulation with buffer inertia.
+
+Weather caches (`source_data/weather_*.csv`, `worst_case_year_*.csv`) are **gitignored** and fetched on demand. The PVGIS TMY file and `water_monthly_default.json` stay in git as fallbacks.
+
+First-time local setup:
+
+```bash
+.venv/bin/python weather.py fetch_history
+HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python run_simulation.py worst_case
+```
+
+(`fetch_history` downloads 2005–2023 and clears any stale worst-case cache.)
 
 Each heated level auto-gets a **circulation proxy** when `[building]` footprint is set: `net floor = footprint × (1 − wall_area_fraction) − sum(room areas)`. `wall_area_fraction` (default 0.12) is the wall/partition share. Covers Flur/Verkehrsfläche without listing every zone. No exterior walls, no radiators; floor/ceiling + infiltration losses only.
 
@@ -102,7 +119,7 @@ The `gh-pages` branch is created automatically by the deploy workflow (or by `de
 
 ### Deploy
 
-**Automatic (recommended):** push to `main` — the [deploy workflow](.github/workflows/deploy-pages.yml) runs `build_docs.py` and updates `gh-pages`.
+**Automatic (recommended):** push to `main` — the [deploy workflow](.github/workflows/deploy-pages.yml) fetches weather history, runs `build_docs.py`, and updates `gh-pages`.
 
 **Manual:**
 

@@ -4,9 +4,17 @@
 [weather]
 # Calendar year for hourly outdoor temps (Open-Meteo ERA5, lat/lon below).
 # Set to 0 to use the PVGIS Typical Meteorological Year instead.
-year = 2023
+year = 2015
 latitude = 48.351    # Ulm area (matches source_data/tmy_*.csv)
 longitude = 10.164
+
+[weather.worst_case]
+# Synthetic worst-case year: for each calendar month, pick the coldest
+# year-month from the historical range (scored by HDH, cold spell, T_min).
+year_start = 2005
+year_end = 2023
+hdh_base_c = 15.0           # heating degree hours base temperature
+spell_threshold_c = 0.0     # longest consecutive hours below this count
 
 [operation]
 # Temperature spread between flow and return water (K). hplib default is 5.
