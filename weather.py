@@ -22,6 +22,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -83,7 +84,8 @@ def weather_cache_path(latitude: float, longitude: float, year: int) -> Path:
     return SOURCE_DIR / f"weather_{latitude:.3f}_{longitude:.3f}_{year}.csv"
 
 
-def fetch_calendar_year(latitude: float, longitude: float, year: int) -> pd.DataFrame:
+def fetch_calendar_year(latitude: float, longitude: float, year: int,
+                        *, retries: int = 3) -> pd.DataFrame:
     """Download hourly 2 m temperature for one calendar year (UTC)."""
     params = urllib.parse.urlencode({
         "latitude": latitude,
@@ -94,15 +96,23 @@ def fetch_calendar_year(latitude: float, longitude: float, year: int) -> pd.Data
         "timezone": "UTC",
     })
     url = f"{OPEN_METEO_ARCHIVE}?{params}"
-    try:
-        with urllib.request.urlopen(url, timeout=120) as resp:
-            payload = json.load(resp)
-    except urllib.error.URLError as exc:
+    last_exc: Exception | None = None
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(url, timeout=120) as resp:
+                payload = json.load(resp)
+            break
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            last_exc = exc
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)
+    else:
         cache = weather_cache_path(latitude, longitude, year)
         raise RuntimeError(
-            f"Could not download weather for {year} ({latitude}, {longitude}): {exc}\n"
+            f"Could not download weather for {year} ({latitude}, {longitude}): "
+            f"{last_exc}\n"
             f"If you are offline, place a cached CSV at {cache}"
-        ) from exc
+        ) from last_exc
 
     times = payload["hourly"]["time"]
     temps = payload["hourly"]["temperature_2m"]
@@ -134,6 +144,28 @@ def load_weather_cache(path: Path) -> pd.DataFrame:
     df["time"] = pd.to_datetime(raw["time"], utc=True)
     df["t_out"] = raw["t_out"].astype(float)
     return _normalize(df)
+
+
+def fetch_weather_years(latitude: float, longitude: float,
+                        years: list[int]) -> tuple[list[int], list[int]]:
+    """Download/cache a list of calendar years; continue past individual failures."""
+    ok: list[int] = []
+    failed: list[int] = []
+    for y in sorted(set(years)):
+        cache = weather_cache_path(latitude, longitude, y)
+        if cache.exists():
+            ok.append(y)
+            print(f"  {y} cached")
+            continue
+        try:
+            load_calendar_year(latitude, longitude, y, fetch=True)
+            ok.append(y)
+            print(f"  {y} ok")
+        except RuntimeError as exc:
+            failed.append(y)
+            print(f"  {y} FAILED: {exc}")
+        time.sleep(0.25)
+    return ok, failed
 
 
 def load_calendar_year(latitude: float, longitude: float, year: int,
@@ -468,16 +500,28 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "fetch_history":
         y0, y1 = settings["worst_case_start"], settings["worst_case_end"]
         lat, lon = settings["latitude"], settings["longitude"]
-        print(f"Fetching calendar years {y0}–{y1} …")
-        for y in range(y0, y1 + 1):
-            load_calendar_year(lat, lon, y)
-            print(f"  {y} ok")
+        years = list(range(y0, y1 + 1))
+        sim_year = settings["year"]
+        if sim_year != 0:
+            years.append(sim_year)
+        print(f"Fetching calendar years {y0}–{y1}"
+              f"{f' (+ sim year {sim_year})' if sim_year != 0 else ''} …")
+        ok, failed = fetch_weather_years(lat, lon, years)
         wc_path = worst_case_cache_path(lat, lon, y0, y1)
         sel_path = worst_case_selection_path(lat, lon, y0, y1)
         if wc_path.exists():
             wc_path.unlink()
         if sel_path.exists():
             sel_path.unlink()
+        print(f"Fetched {len(ok)} years; {len(failed)} failed.")
+        if sim_year != 0 and sim_year not in ok:
+            print(f"ERROR: configured sim year {sim_year} is not available.")
+            sys.exit(1)
+        if not ok:
+            print("ERROR: no weather years available.")
+            sys.exit(1)
+        if failed:
+            print("Warning: some years failed — worst-case may use partial data.")
         print("Cleared worst-case cache — re-run simulation to rebuild.")
         sys.exit(0)
 

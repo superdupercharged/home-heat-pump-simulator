@@ -24,10 +24,13 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HOUSE_CONFIG: house_config_rehgraeble.toml
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -40,8 +43,6 @@ jobs:
         run: python weather.py fetch_history
 
       - name: Build site
-        env:
-          HOUSE_CONFIG: house_config_rehgraeble.toml
         run: python build_docs.py
 
       - name: Deploy to gh-pages branch
