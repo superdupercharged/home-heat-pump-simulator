@@ -8,6 +8,7 @@ on:
       - "config/**"
       - "docs/index.html"
       - "docs/style.css"
+      - "docs/build-id.js"
       - "source_data/**"
       - "requirements.txt"
       - "build_docs.py"

@@ -1,7 +1,7 @@
 {
   "site_title": "Opels houses",
   "default_house": "rehgraeble",
-  "generated_at": "2026-06-20 20:56 UTC",
+  "generated_at": "2026-06-20 21:18 UTC",
   "sizing_comparison": "assets/hp_sizing_comparison.png",
   "houses": {
     "lukra": {
@@ -152,7 +152,7 @@
           "title": "Worst-case house load per month"
         }
       ],
-      "generated_at": "2026-06-20 20:56 UTC"
+      "generated_at": "2026-06-20 21:18 UTC"
     },
     "rehgraeble": {
       "label": "Rehgr\u00e4ble",
@@ -302,7 +302,7 @@
           "title": "Worst-case house load per month"
         }
       ],
-      "generated_at": "2026-06-20 20:56 UTC"
+      "generated_at": "2026-06-20 21:18 UTC"
     }
   }
 }

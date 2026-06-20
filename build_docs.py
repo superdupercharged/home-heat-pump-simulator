@@ -240,7 +240,13 @@ def main() -> None:
     }
     stats_path = DOCS / "stats.json"
     stats_path.write_text(json.dumps(site_stats, indent=2) + "\n", encoding="utf-8")
+    build_id_path = DOCS / "build-id.js"
+    build_id_path.write_text(
+        f'window.__BUILD_ID__ = "{generated_at}";\n',
+        encoding="utf-8",
+    )
     print(f"\n  wrote {stats_path.relative_to(ROOT)} ({len(houses)} houses)")
+    print(f"  wrote {build_id_path.relative_to(ROOT)}")
     print(f"\nDone. Preview:\n  cd docs && python3 -m http.server 8000\n  → http://localhost:8000")
 
 

@@ -6,6 +6,8 @@
   <title>Opels houses</title>
   <meta name="description" content="Hourly heat pump simulation for family homes — annual energy, JAZ, and plots.">
   <link rel="stylesheet" href="style.css">
+  <script src="build-id.js"></script>
+  <script>window.__BUILD_ID__ = window.__BUILD_ID__ || "";</script>
 </head>
 <body>
   <header>
@@ -17,9 +19,8 @@
 
   <main>
     <div id="load-error" class="error" hidden>
-      Could not load <code>stats.json</code>. Run
-      <code>.venv/bin/python build_docs.py</code>
-      first, then serve this folder with a local HTTP server (not <code>file://</code>).
+      <p id="load-error-msg">Could not load site data.</p>
+      <p class="error-hint">Run <code>.venv/bin/python build_docs.py</code>, then open this folder via a local HTTP server (not <code>file://</code>).</p>
     </div>
 
     <div id="content" hidden>
@@ -76,9 +77,53 @@
     };
 
     const STORAGE_KEY = "selectedHouse";
+    const HOUSE_LABELS = { rehgraeble: "Rehgräble", lukra: "Lukra" };
     let siteData = null;
     let currentSlug = null;
     let priceSliderHandler = null;
+
+    function statsUrl() {
+      const base = new URL("stats.json", window.location.href);
+      if (window.__BUILD_ID__) {
+        base.searchParams.set("v", window.__BUILD_ID__);
+      }
+      return base.href;
+    }
+
+    function showError(msg) {
+      document.getElementById("load-error-msg").textContent = msg;
+      document.getElementById("load-error").hidden = false;
+      document.getElementById("content").hidden = true;
+    }
+
+    /** Accept current multi-house stats.json and legacy single-house format. */
+    function normalizeSiteData(raw) {
+      if (raw.houses && typeof raw.houses === "object" && Object.keys(raw.houses).length) {
+        return raw;
+      }
+      let slug = "default";
+      const cfg = raw.house_config || "";
+      const m = cfg.match(/house_config_(.+)\.toml$/);
+      if (m) slug = m[1];
+      return {
+        site_title: raw.site_title || "Opels houses",
+        default_house: slug,
+        generated_at: raw.generated_at || "",
+        sizing_comparison: raw.sizing_comparison || null,
+        houses: {
+          [slug]: {
+            label: HOUSE_LABELS[slug] || slug,
+            ...raw,
+            plots: raw.plots || [],
+            _flatAssets: true,
+          },
+        },
+      };
+    }
+
+    function assetPrefix(slug, house) {
+      return house._flatAssets ? "assets/" : `assets/${slug}/`;
+    }
 
     function fmt(n, digits = 0) {
       return n.toLocaleString("de-DE", { maximumFractionDigits: digits, minimumFractionDigits: digits });
@@ -116,13 +161,14 @@
     }
 
     function renderHouseStats(s, slug) {
+      const hp = s.heat_pump || "";
       const cards = [
-        { value: fmt(s.combined.elec_kwh), label: "Total elec. (kWh/yr)" },
-        { value: fmt(s.combined.cost_eur_per_year) + " €", label: "Bill (EUR/yr)" },
-        { value: s.heating.scop, label: "JAZ / SCOP" },
-        { value: fmt(s.heating.heat_kwh), label: "Space heat (kWh)" },
-        { value: s.heating.peak_el_kw + " kW", label: "Peak draw" },
-        { value: s.heating.avg_flow_c + " °C", label: "Avg flow" },
+        { value: fmt(s.combined?.elec_kwh ?? 0), label: "Total elec. (kWh/yr)" },
+        { value: fmt(s.combined?.cost_eur_per_year ?? 0) + " €", label: "Bill (EUR/yr)" },
+        { value: s.heating?.scop ?? "—", label: "JAZ / SCOP" },
+        { value: fmt(s.heating?.heat_kwh ?? 0), label: "Space heat (kWh)" },
+        { value: (s.heating?.peak_el_kw ?? "—") + " kW", label: "Peak draw" },
+        { value: (s.heating?.avg_flow_c ?? "—") + " °C", label: "Avg flow" },
       ];
       if (s.dhw) {
         cards.push({ value: fmt(s.dhw.elec_kwh), label: "DHW elec. (kWh)" });
@@ -132,18 +178,19 @@
       ).join("");
 
       document.getElementById("meta").textContent =
-        `${s.location} · ${s.weather || "weather"} · ${s.heat_pump.split("(")[0].trim()} · ${s.heating_curve} · generated ${siteData.generated_at}`;
+        `${s.location || ""} · ${s.weather || "weather"} · ${hp.split("(")[0].trim()} · ${s.heating_curve || ""} · generated ${siteData.generated_at}`;
 
       const tbody = document.querySelector("#monthly-table tbody");
-      tbody.innerHTML = s.monthly.map(m =>
-        `<tr><td>${m.month}</td><td>${fmt(m.heat_kwh)} kWh</td><td>${fmt(m.elec_kwh)} kWh</td><td>${m.cop.toFixed(2)}</td></tr>`
+      tbody.innerHTML = (s.monthly || []).map(m =>
+        `<tr><td>${m.month}</td><td>${fmt(m.heat_kwh)} kWh</td><td>${fmt(m.elec_kwh)} kWh</td><td>${Number(m.cop || 0).toFixed(2)}</td></tr>`
       ).join("");
 
-      document.getElementById("plots").innerHTML = s.plots.map(p => `
+      const prefix = assetPrefix(slug, s);
+      document.getElementById("plots").innerHTML = (s.plots || []).map(p => `
         <section class="plot-section">
           <h2>${p.title}</h2>
           <p class="desc">${PLOT_DESC[p.file] || ""}</p>
-          <img src="assets/${slug}/${p.file}" alt="${p.title}" loading="lazy">
+          <img src="${prefix}${p.file}" alt="${p.title}" loading="lazy">
         </section>
       `).join("");
     }
@@ -181,7 +228,9 @@
     }
 
     function selectHouse(slug) {
-      if (!siteData.houses[slug]) return;
+      if (!siteData?.houses?.[slug]) {
+        throw new Error(`Unknown house: ${slug}`);
+      }
       currentSlug = slug;
       localStorage.setItem(STORAGE_KEY, slug);
       setUrlHouse(slug);
@@ -191,19 +240,33 @@
     }
 
     async function init() {
+      if (window.location.protocol === "file:") {
+        showError("This site must be served over HTTP (file:// cannot load stats.json).");
+        return;
+      }
       try {
-        const resp = await fetch("stats.json");
-        if (!resp.ok) throw new Error(resp.statusText);
-        siteData = await resp.json();
+        const resp = await fetch(statsUrl(), { cache: "no-store" });
+        if (!resp.ok) {
+          throw new Error(`stats.json HTTP ${resp.status}`);
+        }
+        siteData = normalizeSiteData(await resp.json());
+        if (!siteData.houses || !Object.keys(siteData.houses).length) {
+          throw new Error("stats.json has no house entries");
+        }
         if (siteData.site_title) {
           document.getElementById("site-title").textContent = siteData.site_title;
           document.title = siteData.site_title;
         }
         document.getElementById("content").hidden = false;
+        document.getElementById("load-error").hidden = true;
         renderSizingComparison();
-        selectHouse(resolveInitialSlug());
+        const slug = resolveInitialSlug();
+        if (!siteData.houses[slug]) {
+          throw new Error(`Default house "${slug}" not found in stats.json`);
+        }
+        selectHouse(slug);
       } catch (e) {
-        document.getElementById("load-error").hidden = false;
+        showError(e.message || String(e));
         console.error(e);
       }
     }
