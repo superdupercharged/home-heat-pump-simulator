@@ -1,146 +1,308 @@
 {
-  "generated_at": "2026-06-20 20:30 UTC",
-  "house_config": "house_config_rehgraeble.toml",
-  "weather": "calendar year 2022 (Open-Meteo ERA5)",
-  "weather_year": 2022,
-  "heat_pump": "Midea M-Thermal Nature Mono R290 16kW (MHC-V16WD2RN7-BER90)",
-  "heating_curve": "Heizkurve: 25\u00b0C@20\u00b0C \u2192 55\u00b0C@-12\u00b0C, Neigung 0.94, ged\u00e4mpft 24h",
-  "heating_curve_params": {
-    "flow_at_design_c": 55.0,
-    "flow_at_foot_c": 25.0,
-    "design_outdoor_temp_c": -12.0,
-    "foot_outdoor_temp_c": 20.0,
-    "level_offset_k": 0.0,
-    "outdoor_inertia_hours": 24.0,
-    "heating_limit_c": 15.0
-  },
-  "electricity_price_eur_per_kwh": 0.25,
-  "heating": {
-    "heat_kwh": 23875,
-    "elec_kwh": 7251,
-    "scop": 3.29,
-    "hp_elec_kwh": 7239,
-    "backup_kwh": 12,
-    "peak_el_kw": 10.15,
-    "backup_hours": 13,
-    "avg_flow_c": 38.7
-  },
-  "dhw": {
-    "heat_kwh": 1813,
-    "elec_kwh": 595,
-    "scop": 3.05
-  },
-  "combined": {
-    "elec_kwh": 7846,
-    "cost_eur_per_year": 1962,
-    "cost_eur_per_month": 163
-  },
-  "house_demand": {
-    "heat_kwh": 23875,
-    "peak_kw": 10.15
-  },
-  "monthly": [
-    {
-      "month": "Jan",
-      "heat_kwh": 4256,
-      "elec_kwh": 1453,
-      "cop": 2.93
+  "site_title": "Opels houses",
+  "default_house": "rehgraeble",
+  "generated_at": "2026-06-20 21:12 UTC",
+  "sizing_comparison": "assets/hp_sizing_comparison.png",
+  "houses": {
+    "lukra": {
+      "label": "Lukra",
+      "house_config": "house_config_lukra.toml",
+      "location": "Gifhorn, Niedersachsen",
+      "latitude": 52.489,
+      "longitude": 10.546,
+      "weather": "calendar year 2022 (Open-Meteo ERA5, Gifhorn, Niedersachsen)",
+      "weather_year": 2022,
+      "heat_pump": "Midea M-Thermal Nature Mono R290 16kW (MHC-V16WD2RN7-BER90)",
+      "heating_curve": "Heizkurve: 25\u00b0C@20\u00b0C \u2192 55\u00b0C@-12\u00b0C, Neigung 0.94, ged\u00e4mpft 24h",
+      "heating_curve_params": {
+        "flow_at_design_c": 55.0,
+        "flow_at_foot_c": 25.0,
+        "design_outdoor_temp_c": -12.0,
+        "foot_outdoor_temp_c": 20.0,
+        "level_offset_k": 0.0,
+        "outdoor_inertia_hours": 24.0,
+        "heating_limit_c": 15.0
+      },
+      "electricity_price_eur_per_kwh": 0.25,
+      "heating": {
+        "heat_kwh": 14705,
+        "elec_kwh": 4018,
+        "scop": 3.66,
+        "hp_elec_kwh": 4018,
+        "backup_kwh": 0,
+        "peak_el_kw": 3.82,
+        "backup_hours": 0,
+        "avg_flow_c": 37.4
+      },
+      "dhw": {
+        "heat_kwh": 1813,
+        "elec_kwh": 561,
+        "scop": 3.23
+      },
+      "combined": {
+        "elec_kwh": 4580,
+        "cost_eur_per_year": 1145,
+        "cost_eur_per_month": 95
+      },
+      "house_demand": {
+        "heat_kwh": 14705,
+        "peak_kw": 5.27
+      },
+      "monthly": [
+        {
+          "month": "Jan",
+          "heat_kwh": 2323,
+          "elec_kwh": 637,
+          "cop": 3.65
+        },
+        {
+          "month": "Feb",
+          "heat_kwh": 2001,
+          "elec_kwh": 525,
+          "cop": 3.81
+        },
+        {
+          "month": "Mar",
+          "heat_kwh": 2268,
+          "elec_kwh": 634,
+          "cop": 3.58
+        },
+        {
+          "month": "Apr",
+          "heat_kwh": 1798,
+          "elec_kwh": 431,
+          "cop": 4.17
+        },
+        {
+          "month": "May",
+          "heat_kwh": 551,
+          "elec_kwh": 105,
+          "cop": 5.23
+        },
+        {
+          "month": "Jun",
+          "heat_kwh": 0,
+          "elec_kwh": 0,
+          "cop": 0
+        },
+        {
+          "month": "Jul",
+          "heat_kwh": 0,
+          "elec_kwh": 0,
+          "cop": 0
+        },
+        {
+          "month": "Aug",
+          "heat_kwh": 0,
+          "elec_kwh": 0,
+          "cop": 0
+        },
+        {
+          "month": "Sep",
+          "heat_kwh": 0,
+          "elec_kwh": 0,
+          "cop": 0
+        },
+        {
+          "month": "Oct",
+          "heat_kwh": 1215,
+          "elec_kwh": 231,
+          "cop": 5.27
+        },
+        {
+          "month": "Nov",
+          "heat_kwh": 1945,
+          "elec_kwh": 510,
+          "cop": 3.82
+        },
+        {
+          "month": "Dec",
+          "heat_kwh": 2603,
+          "elec_kwh": 946,
+          "cop": 2.75
+        }
+      ],
+      "plots": [
+        {
+          "file": "sim_full_year.png",
+          "title": "Full year: heat vs electricity"
+        },
+        {
+          "file": "sim_yearly_temps.png",
+          "title": "Yearly temperatures, demand & COP"
+        },
+        {
+          "file": "house_full_year.png",
+          "title": "House heat demand (no heat pump)"
+        },
+        {
+          "file": "radiator_check.png",
+          "title": "Radiator adequacy at design point"
+        },
+        {
+          "file": "radiator_room_energy.png",
+          "title": "Room energy split at design point"
+        },
+        {
+          "file": "sim_worst_case.png",
+          "title": "Worst-case electrical draw per month"
+        },
+        {
+          "file": "house_worst_case.png",
+          "title": "Worst-case house load per month"
+        }
+      ],
+      "generated_at": "2026-06-20 21:12 UTC"
     },
-    {
-      "month": "Feb",
-      "heat_kwh": 3368,
-      "elec_kwh": 988,
-      "cop": 3.41
-    },
-    {
-      "month": "Mar",
-      "heat_kwh": 3586,
-      "elec_kwh": 1102,
-      "cop": 3.26
-    },
-    {
-      "month": "Apr",
-      "heat_kwh": 2779,
-      "elec_kwh": 709,
-      "cop": 3.92
-    },
-    {
-      "month": "May",
-      "heat_kwh": 729,
-      "elec_kwh": 144,
-      "cop": 5.08
-    },
-    {
-      "month": "Jun",
-      "heat_kwh": 0,
-      "elec_kwh": 0,
-      "cop": 0
-    },
-    {
-      "month": "Jul",
-      "heat_kwh": 0,
-      "elec_kwh": 0,
-      "cop": 0
-    },
-    {
-      "month": "Aug",
-      "heat_kwh": 0,
-      "elec_kwh": 0,
-      "cop": 0
-    },
-    {
-      "month": "Sep",
-      "heat_kwh": 0,
-      "elec_kwh": 0,
-      "cop": 0
-    },
-    {
-      "month": "Oct",
-      "heat_kwh": 1773,
-      "elec_kwh": 348,
-      "cop": 5.1
-    },
-    {
-      "month": "Nov",
-      "heat_kwh": 3160,
-      "elec_kwh": 827,
-      "cop": 3.82
-    },
-    {
-      "month": "Dec",
-      "heat_kwh": 4224,
-      "elec_kwh": 1680,
-      "cop": 2.51
+    "rehgraeble": {
+      "label": "Rehgr\u00e4ble",
+      "house_config": "house_config_rehgraeble.toml",
+      "location": "Ulm area",
+      "latitude": 48.351,
+      "longitude": 10.164,
+      "weather": "calendar year 2022 (Open-Meteo ERA5, Ulm area)",
+      "weather_year": 2022,
+      "heat_pump": "Midea M-Thermal Nature Mono R290 16kW (MHC-V16WD2RN7-BER90)",
+      "heating_curve": "Heizkurve: 25\u00b0C@20\u00b0C \u2192 55\u00b0C@-12\u00b0C, Neigung 0.94, ged\u00e4mpft 24h",
+      "heating_curve_params": {
+        "flow_at_design_c": 55.0,
+        "flow_at_foot_c": 25.0,
+        "design_outdoor_temp_c": -12.0,
+        "foot_outdoor_temp_c": 20.0,
+        "level_offset_k": 0.0,
+        "outdoor_inertia_hours": 24.0,
+        "heating_limit_c": 15.0
+      },
+      "electricity_price_eur_per_kwh": 0.25,
+      "heating": {
+        "heat_kwh": 23875,
+        "elec_kwh": 7251,
+        "scop": 3.29,
+        "hp_elec_kwh": 7239,
+        "backup_kwh": 12,
+        "peak_el_kw": 10.15,
+        "backup_hours": 13,
+        "avg_flow_c": 38.7
+      },
+      "dhw": {
+        "heat_kwh": 1813,
+        "elec_kwh": 595,
+        "scop": 3.05
+      },
+      "combined": {
+        "elec_kwh": 7846,
+        "cost_eur_per_year": 1962,
+        "cost_eur_per_month": 163
+      },
+      "house_demand": {
+        "heat_kwh": 23875,
+        "peak_kw": 10.15
+      },
+      "monthly": [
+        {
+          "month": "Jan",
+          "heat_kwh": 4256,
+          "elec_kwh": 1453,
+          "cop": 2.93
+        },
+        {
+          "month": "Feb",
+          "heat_kwh": 3368,
+          "elec_kwh": 988,
+          "cop": 3.41
+        },
+        {
+          "month": "Mar",
+          "heat_kwh": 3586,
+          "elec_kwh": 1102,
+          "cop": 3.26
+        },
+        {
+          "month": "Apr",
+          "heat_kwh": 2779,
+          "elec_kwh": 709,
+          "cop": 3.92
+        },
+        {
+          "month": "May",
+          "heat_kwh": 729,
+          "elec_kwh": 144,
+          "cop": 5.08
+        },
+        {
+          "month": "Jun",
+          "heat_kwh": 0,
+          "elec_kwh": 0,
+          "cop": 0
+        },
+        {
+          "month": "Jul",
+          "heat_kwh": 0,
+          "elec_kwh": 0,
+          "cop": 0
+        },
+        {
+          "month": "Aug",
+          "heat_kwh": 0,
+          "elec_kwh": 0,
+          "cop": 0
+        },
+        {
+          "month": "Sep",
+          "heat_kwh": 0,
+          "elec_kwh": 0,
+          "cop": 0
+        },
+        {
+          "month": "Oct",
+          "heat_kwh": 1773,
+          "elec_kwh": 348,
+          "cop": 5.1
+        },
+        {
+          "month": "Nov",
+          "heat_kwh": 3160,
+          "elec_kwh": 827,
+          "cop": 3.82
+        },
+        {
+          "month": "Dec",
+          "heat_kwh": 4224,
+          "elec_kwh": 1680,
+          "cop": 2.51
+        }
+      ],
+      "plots": [
+        {
+          "file": "sim_full_year.png",
+          "title": "Full year: heat vs electricity"
+        },
+        {
+          "file": "sim_yearly_temps.png",
+          "title": "Yearly temperatures, demand & COP"
+        },
+        {
+          "file": "house_full_year.png",
+          "title": "House heat demand (no heat pump)"
+        },
+        {
+          "file": "radiator_check.png",
+          "title": "Radiator adequacy at design point"
+        },
+        {
+          "file": "radiator_room_energy.png",
+          "title": "Room energy split at design point"
+        },
+        {
+          "file": "sim_worst_case.png",
+          "title": "Worst-case electrical draw per month"
+        },
+        {
+          "file": "house_worst_case.png",
+          "title": "Worst-case house load per month"
+        }
+      ],
+      "generated_at": "2026-06-20 21:12 UTC"
     }
-  ],
-  "plots": [
-    {
-      "file": "sim_full_year.png",
-      "title": "Full year: heat vs electricity"
-    },
-    {
-      "file": "sim_yearly_temps.png",
-      "title": "Yearly temperatures, demand & COP"
-    },
-    {
-      "file": "house_full_year.png",
-      "title": "House heat demand (no heat pump)"
-    },
-    {
-      "file": "radiator_check.png",
-      "title": "Radiator adequacy at design point"
-    },
-    {
-      "file": "radiator_room_energy.png",
-      "title": "Room energy split at design point"
-    },
-    {
-      "file": "sim_worst_case.png",
-      "title": "Worst-case electrical draw per month"
-    },
-    {
-      "file": "house_worst_case.png",
-      "title": "Worst-case house load per month"
-    }
-  ]
+  }
 }

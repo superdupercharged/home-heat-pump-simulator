@@ -3,21 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Thilo's Home Heatpump Simulation</title>
-  <meta name="description" content="Hourly heat pump simulation for a South Germany home — annual energy, JAZ, and plots.">
+  <title>Opels houses</title>
+  <meta name="description" content="Hourly heat pump simulation for family homes — annual energy, JAZ, and plots.">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <h1>Thilo's Home Heatpump Simulation</h1>
-    <p>Hourly simulation for a South Germany home (Ulm–Memmingen weather). Per-room heat loss, weather-compensated flow temperature, Midea R290 heat pump, DHW &amp; ventilation.</p>
+    <h1 id="site-title">Opels houses</h1>
+    <p>Hourly heat pump simulation with per-room heat loss, weather-compensated flow temperature, shared heat pump model, DHW &amp; ventilation.</p>
+    <nav class="house-switcher" id="house-switcher" aria-label="Select house"></nav>
     <p class="meta" id="meta"></p>
   </header>
 
   <main>
     <div id="load-error" class="error" hidden>
       Could not load <code>stats.json</code>. Run
-      <code>HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python build_docs.py</code>
+      <code>.venv/bin/python build_docs.py</code>
       first, then serve this folder with a local HTTP server (not <code>file://</code>).
     </div>
 
@@ -49,6 +50,12 @@
       </div>
 
       <div id="plots"></div>
+
+      <section class="plot-section" id="sizing-section" hidden>
+        <h2>Heat pump sizing comparison</h2>
+        <p class="desc">Peak thermal and electrical draw for each house vs the configured heat pump (16 kW nominal) and a scaled 12 kW alternative (same COP curve).</p>
+        <img id="sizing-img" src="" alt="Heat pump sizing comparison" loading="lazy">
+      </section>
     </div>
   </main>
 
@@ -68,13 +75,47 @@
       "house_worst_case.png": "Synthetic worst-case year: peak house thermal load per month from full hourly simulation.",
     };
 
-    let stats = null;
+    const STORAGE_KEY = "selectedHouse";
+    let siteData = null;
+    let currentSlug = null;
+    let priceSliderHandler = null;
 
     function fmt(n, digits = 0) {
       return n.toLocaleString("de-DE", { maximumFractionDigits: digits, minimumFractionDigits: digits });
     }
 
-    function renderStats(s) {
+    function houseSlugs() {
+      return Object.keys(siteData.houses);
+    }
+
+    function resolveInitialSlug() {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("house");
+      if (fromUrl && siteData.houses[fromUrl]) return fromUrl;
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored && siteData.houses[stored]) return stored;
+      return siteData.default_house || houseSlugs()[0];
+    }
+
+    function setUrlHouse(slug) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("house", slug);
+      history.replaceState(null, "", url);
+    }
+
+    function renderSwitcher(activeSlug) {
+      const nav = document.getElementById("house-switcher");
+      nav.innerHTML = houseSlugs().map(slug => {
+        const h = siteData.houses[slug];
+        const active = slug === activeSlug ? " active" : "";
+        return `<button type="button" class="house-tab${active}" data-slug="${slug}">${h.label}</button>`;
+      }).join("");
+      nav.querySelectorAll(".house-tab").forEach(btn => {
+        btn.addEventListener("click", () => selectHouse(btn.dataset.slug));
+      });
+    }
+
+    function renderHouseStats(s, slug) {
       const cards = [
         { value: fmt(s.combined.elec_kwh), label: "Total elec. (kWh/yr)" },
         { value: fmt(s.combined.cost_eur_per_year) + " €", label: "Bill (EUR/yr)" },
@@ -91,7 +132,7 @@
       ).join("");
 
       document.getElementById("meta").textContent =
-        `${s.house_config} · ${s.weather || "weather"} · ${s.heat_pump.split("(")[0].trim()} · ${s.heating_curve} · generated ${s.generated_at}`;
+        `${s.location} · ${s.weather || "weather"} · ${s.heat_pump.split("(")[0].trim()} · ${s.heating_curve} · generated ${siteData.generated_at}`;
 
       const tbody = document.querySelector("#monthly-table tbody");
       tbody.innerHTML = s.monthly.map(m =>
@@ -102,7 +143,7 @@
         <section class="plot-section">
           <h2>${p.title}</h2>
           <p class="desc">${PLOT_DESC[p.file] || ""}</p>
-          <img src="assets/${p.file}" alt="${p.title}" loading="lazy">
+          <img src="assets/${slug}/${p.file}" alt="${p.title}" loading="lazy">
         </section>
       `).join("");
     }
@@ -114,25 +155,53 @@
       const basePrice = s.electricity_price_eur_per_kwh;
       const totalKwh = s.combined.elec_kwh;
 
+      if (priceSliderHandler) {
+        slider.removeEventListener("input", priceSliderHandler);
+      }
       slider.value = basePrice;
-      function update() {
+      priceSliderHandler = () => {
         const p = parseFloat(slider.value);
         priceOut.textContent = p.toFixed(2) + " EUR/kWh";
         const yearly = totalKwh * p;
         costOut.textContent = fmt(Math.round(yearly)) + " EUR/yr  (~" + fmt(Math.round(yearly / 12)) + " EUR/mo)";
+      };
+      slider.addEventListener("input", priceSliderHandler);
+      priceSliderHandler();
+    }
+
+    function renderSizingComparison() {
+      const section = document.getElementById("sizing-section");
+      const img = document.getElementById("sizing-img");
+      if (!siteData.sizing_comparison) {
+        section.hidden = true;
+        return;
       }
-      slider.addEventListener("input", update);
-      update();
+      img.src = siteData.sizing_comparison;
+      section.hidden = false;
+    }
+
+    function selectHouse(slug) {
+      if (!siteData.houses[slug]) return;
+      currentSlug = slug;
+      localStorage.setItem(STORAGE_KEY, slug);
+      setUrlHouse(slug);
+      renderSwitcher(slug);
+      renderHouseStats(siteData.houses[slug], slug);
+      setupPriceSlider(siteData.houses[slug]);
     }
 
     async function init() {
       try {
         const resp = await fetch("stats.json");
         if (!resp.ok) throw new Error(resp.statusText);
-        stats = await resp.json();
+        siteData = await resp.json();
+        if (siteData.site_title) {
+          document.getElementById("site-title").textContent = siteData.site_title;
+          document.title = siteData.site_title;
+        }
         document.getElementById("content").hidden = false;
-        renderStats(stats);
-        setupPriceSlider(stats);
+        renderSizingComparison();
+        selectHouse(resolveInitialSlug());
       } catch (e) {
         document.getElementById("load-error").hidden = false;
         console.error(e);
