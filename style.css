@@ -234,6 +234,13 @@ footer {
   margin: 1rem 0;
 }
 
+.error-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: #ffb4b4;
+  opacity: 0.9;
+}
+
 @media (max-width: 600px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
