@@ -3,7 +3,7 @@
 Usage:
     .venv/bin/python run_house.py [full_year|worst_case]
 
-Outputs a summary table to the terminal and saves a plot to output/.
+Outputs a summary table to the terminal and saves a plot to outputs/<house>/.
 The house model is steady-state: it reports the power needed to *maintain*
 setpoints, not the energy to heat the house up from cold.
 """
@@ -20,11 +20,9 @@ import numpy as np
 matplotlib.use("Agg")  # headless: render straight to file
 import matplotlib.pyplot as plt  # noqa: E402
 
-from house_model import House, load_house_config  # noqa: E402
+from house_model import House, house_output_dir, load_house_config  # noqa: E402
 from home_heat_sim import load_config  # noqa: E402
 from weather import WeatherDriver  # noqa: E402
-
-OUTPUT_DIR = Path(__file__).with_name("output")
 
 
 def run_full_year(house: House, scenario, weather_label: str = "") -> Path:
@@ -83,7 +81,7 @@ def run_full_year(house: House, scenario, weather_label: str = "") -> Path:
     ax2.legend()
 
     fig.tight_layout()
-    out = OUTPUT_DIR / "house_full_year.png"
+    out = house_output_dir() / "house_full_year.png"
     fig.savefig(out, dpi=110)
     plt.close(fig)
     return out
@@ -154,7 +152,7 @@ def run_worst_case(house: House, scenario, weather_label: str = "",
     ax.set_ylim(0, max(y_top, 10))
     ax.grid(axis="y", alpha=0.3)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
-    out = OUTPUT_DIR / "house_worst_case.png"
+    out = house_output_dir() / "house_worst_case.png"
     fig.savefig(out, dpi=110)
     plt.close(fig)
     return out
@@ -162,10 +160,11 @@ def run_worst_case(house: House, scenario, weather_label: str = "",
 
 def main() -> None:
     scenario_name = sys.argv[1] if len(sys.argv) > 1 else "full_year"
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    house_output_dir().mkdir(parents=True, exist_ok=True)
     cfg = load_config()
-    house = House.from_config(load_house_config())
-    drv = WeatherDriver.from_config(cfg)
+    house_cfg = load_house_config()
+    house = House.from_config(house_cfg)
+    drv = WeatherDriver.from_config(cfg, house_cfg)
     print(f"Weather: {drv.source_label}")
 
     if scenario_name == "worst_case":

@@ -35,6 +35,7 @@ CIRCULATION_PROXY_MIN_AREA_M2 = 0.5
 CIRCULATION_PROXY_ROOM_TEMP_C = 20.0
 
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
+OUTPUTS_ROOT = Path(__file__).resolve().parent / "outputs"
 HOUSE_CONFIG_PATH = CONFIG_DIR / "house_config.toml"
 
 # Volumetric heat capacity of air ≈ 0.34 Wh/(m³·K) (1.2 kg/m³ * 1005 J/(kg·K)).
@@ -49,6 +50,25 @@ def _resolve_house_config_path(path: Path) -> Path:
     if candidate.is_file():
         return candidate
     return path
+
+
+def house_config_slug(path: Path | None = None) -> str:
+    """Short name for the active house config (e.g. ``rehgraeble``, ``lukra``)."""
+    if path is None:
+        env = os.environ.get("HOUSE_CONFIG")
+        path = Path(env) if env else HOUSE_CONFIG_PATH
+    path = _resolve_house_config_path(path)
+    stem = path.stem
+    if stem.startswith("house_config_"):
+        return stem[len("house_config_"):]
+    if stem == "house_config":
+        return "default"
+    return stem
+
+
+def house_output_dir(path: Path | None = None) -> Path:
+    """Directory for plots and artifacts of the active house config."""
+    return OUTPUTS_ROOT / house_config_slug(path)
 
 
 def load_house_config(path: Path | None = None) -> dict:

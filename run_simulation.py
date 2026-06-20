@@ -11,7 +11,7 @@ For each hour:
      resistive backup heater (COP = 1)
 
 Outputs annual electricity, seasonal COP (SCOP), peak draw, backup usage,
-a monthly table and plots in output/.
+a monthly table and plots in outputs/<house>/.
 """
 
 from __future__ import annotations
@@ -30,10 +30,8 @@ from matplotlib.patches import FancyBboxPatch  # noqa: E402
 
 from heating_curve import HeatingCurve, plot_yearly_profile  # noqa: E402
 from home_heat_sim import FittedHeatPump, HeatPumpSpec, load_config  # noqa: E402
-from house_model import House, load_house_config  # noqa: E402
+from house_model import House, house_output_dir, load_house_config  # noqa: E402
 from weather import WeatherDriver  # noqa: E402
-
-OUTPUT_DIR = Path(__file__).with_name("output")
 
 
 def couple(house: House, hp: FittedHeatPump, scenario,
@@ -271,11 +269,15 @@ def run_full_year(house, hp, scenario, heating_curve, price, house_label,
     ax_info.text(0.54, 0.96, info_right, **text_kw)
 
     fig.tight_layout()
-    out = OUTPUT_DIR / "sim_full_year.png"
+    out = house_output_dir() / "sim_full_year.png"
     fig.savefig(out, dpi=110)
     plt.close(fig)
 
-    yearly_out = plot_yearly_profile(heating_curve, df, r, weather_label=weather_label)
+    yearly_out = plot_yearly_profile(
+        heating_curve, df, r,
+        path=house_output_dir() / "sim_yearly_temps.png",
+        weather_label=weather_label,
+    )
     print(f"Yearly temp plot    : {yearly_out}")
     return out
 
@@ -367,7 +369,7 @@ def run_worst_case(house, hp, scenario, heating_curve, house_label,
             fontsize=9, family="monospace",
             bbox=dict(boxstyle="round", fc="white", ec="#cf222e", alpha=0.9))
     fig.tight_layout(rect=(0, 0, 1, 0.96))
-    out = OUTPUT_DIR / "sim_worst_case.png"
+    out = house_output_dir() / "sim_worst_case.png"
     fig.savefig(out, dpi=110)
     plt.close(fig)
     return out
@@ -375,7 +377,7 @@ def run_worst_case(house, hp, scenario, heating_curve, house_label,
 
 def main() -> None:
     scenario_name = sys.argv[1] if len(sys.argv) > 1 else "full_year"
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    house_output_dir().mkdir(parents=True, exist_ok=True)
 
     cfg = load_config()
     delta_t = float(cfg["operation"]["delta_t_k"])
@@ -385,7 +387,7 @@ def main() -> None:
     house = House.from_config(house_cfg)
     heating_curve = HeatingCurve.from_config(cfg, house_cfg)
     house_label = Path(os.environ.get("HOUSE_CONFIG", "house_config.toml")).name
-    drv = WeatherDriver.from_config(cfg)
+    drv = WeatherDriver.from_config(cfg, house_cfg)
     print(f"Weather              : {drv.source_label}")
 
     if scenario_name == "worst_case":

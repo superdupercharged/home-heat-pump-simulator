@@ -9,7 +9,7 @@ __pycache__/
 .pytest_cache/
 
 # Generated outputs
-output/
+outputs/
 
 # OS / editor
 .DS_Store

@@ -6,11 +6,11 @@ curve's design flow temperature):
 1. Radiator adequacy: per room, compare the radiator's heat output at the design
    flow temperature against the room's design heat loss. Rooms the radiator can't
    cover would stay too cold and need a higher flow temp, a bigger radiator, or
-   backup heat.  ->  output/radiator_check.png
+   backup heat.  ->  outputs/<house>/radiator_check.png
 2. Room energy split: per room, the design heat loss split into transmission
    (Wärmeverlust), baseline infiltration (undichte Hülle) and window airing
    (Lüften), highest demand on top.  Includes the auto circulation-proxy rooms.
-   ->  output/radiator_room_energy.png
+   ->  outputs/<house>/radiator_room_energy.png
 
 Usage:
     .venv/bin/python room_check.py
@@ -30,13 +30,11 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from heating_curve import HeatingCurve  # noqa: E402
 from home_heat_sim import load_config  # noqa: E402
-from house_model import House, load_house_config  # noqa: E402
-
-OUTPUT_DIR = Path(__file__).with_name("output")
+from house_model import House, house_output_dir, load_house_config  # noqa: E402
 
 
 def main() -> None:
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    house_output_dir().mkdir(parents=True, exist_ok=True)
     cfg = load_config()
     delta_t = float(cfg["operation"]["delta_t_k"])
     house_cfg = load_house_config()
@@ -106,7 +104,7 @@ def main() -> None:
     ax.grid(axis="y", alpha=0.3)
     ax.legend(loc="upper right")
     fig.tight_layout()
-    out = OUTPUT_DIR / "radiator_check.png"
+    out = house_output_dir() / "radiator_check.png"
     fig.savefig(out, dpi=110)
     plt.close(fig)
     print(f"\nPlot saved to: {out}")
@@ -157,7 +155,7 @@ def plot_room_energy_split(res: dict, house_label: str, t_design: float) -> Path
     ax.grid(axis="x", alpha=0.3)
     ax.legend(loc="upper right")
     fig.tight_layout()
-    out = OUTPUT_DIR / "radiator_room_energy.png"
+    out = house_output_dir() / "radiator_room_energy.png"
     fig.savefig(out, dpi=110)
     plt.close(fig)
     return out

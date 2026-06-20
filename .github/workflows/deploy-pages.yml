@@ -24,9 +24,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      HOUSE_CONFIG: house_config_rehgraeble.toml
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
@@ -39,8 +37,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Fetch weather history
-        run: python weather.py fetch_history
+      - name: Fetch weather history (all houses)
+        run: |
+          for cfg in config/house_config_*.toml; do
+            echo "Fetching weather for $(basename "$cfg") …"
+            HOUSE_CONFIG=$(basename "$cfg") python weather.py fetch_history
+          done
 
       - name: Build site
         run: python build_docs.py

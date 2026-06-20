@@ -26,7 +26,8 @@ import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
-OUTPUT_DIR = Path(__file__).with_name("output")
+
+from house_model import house_output_dir  # noqa: E402
 
 
 def _ema(series: np.ndarray, inertia_hours: float, dt_hours: float) -> np.ndarray:
@@ -138,7 +139,7 @@ def plot_heating_curve(curve: HeatingCurve, path: Path | None = None,
     """Plot the configured heating curve. Saves to disk unless *ax* is given."""
     save = ax is None
     if save:
-        path = path or OUTPUT_DIR / "heating_curve.png"
+        path = path or house_output_dir() / "heating_curve.png"
         path.parent.mkdir(exist_ok=True)
         fig, ax = plt.subplots(figsize=(8, 5))
     else:
@@ -196,7 +197,7 @@ def plot_yearly_profile(curve: HeatingCurve, df, result: dict,
                         path: Path | None = None,
                         weather_label: str = "") -> Path:
     """Year timeline: outdoor T, flow T, COP; small heating-curve inset below."""
-    path = path or OUTPUT_DIR / "sim_yearly_temps.png"
+    path = path or house_output_dir() / "sim_yearly_temps.png"
     path.parent.mkdir(exist_ok=True)
 
     day = df["day"].to_numpy()

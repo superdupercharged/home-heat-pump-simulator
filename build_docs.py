@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Build the static GitHub Pages site in docs/.
 
-Runs all simulations, copies plots to docs/assets/, and writes stats.json.
+Runs simulations for every house_config_*.toml, copies plots to
+docs/assets/<slug>/, writes multi-house stats.json, and includes the
+cross-house sizing comparison chart.
 
 Usage:
-    HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python build_docs.py
+    .venv/bin/python build_docs.py
     cd docs && python3 -m http.server 8000   # preview at http://localhost:8000
 """
 
@@ -22,7 +24,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
 ASSETS = DOCS / "assets"
-OUTPUT = ROOT / "output"
+SITE_TITLE = "Opels houses"
+DEFAULT_HOUSE = "rehgraeble"
+SIZING_SRC = ROOT / "outputs" / "hp_sizing_comparison.png"
+SIZING_DEST = ASSETS / "hp_sizing_comparison.png"
 
 PLOTS = [
     ("sim_full_year.png", "Full year: heat vs electricity"),
@@ -43,31 +48,44 @@ SCRIPTS = [
 ]
 
 
-def run_simulations() -> None:
+def discover_house_configs() -> list[tuple[str, str]]:
+    from compare_sizing import discover_house_configs as _discover
+    return _discover()
+
+
+def run_simulations(env: dict) -> None:
     py = sys.executable
-    env = os.environ.copy()
     for script, args in SCRIPTS:
         cmd = [py, str(ROOT / script), *args]
         print(f"  {' '.join(cmd)}")
         subprocess.run(cmd, cwd=ROOT, env=env, check=True)
 
 
-def collect_stats() -> dict:
+DISPLAY_NAMES = {
+    "rehgraeble": "Rehgräble",
+    "lukra": "Lukra",
+}
+
+
+def _house_label(house_cfg: dict, slug: str) -> str:
+    return DISPLAY_NAMES.get(slug, slug.replace("_", " ").title())
+
+
+def collect_stats(house_cfg: dict, slug: str) -> dict:
     from heating_curve import HeatingCurve
     from home_heat_sim import FittedHeatPump, HeatPumpSpec, load_config
-    from house_model import House, load_house_config
+    from house_model import House
     from run_simulation import compute_dhw, couple
     from weather import WeatherDriver
 
     cfg = load_config()
-    house_cfg = load_house_config()
     house = House.from_config(house_cfg)
     delta_t = float(cfg["operation"]["delta_t_k"])
     price = float(cfg.get("cost", {}).get("electricity_price_eur_per_kwh", 0.25))
     hp = FittedHeatPump(HeatPumpSpec.from_config(cfg), delta_t_k=delta_t)
     heating_curve = HeatingCurve.from_config(cfg, house_cfg)
-    house_label = Path(os.environ.get("HOUSE_CONFIG", "house_config.toml")).name
-    drv = WeatherDriver.from_config(cfg)
+    house_file = f"house_config_{slug}.toml"
+    drv = WeatherDriver.from_config(cfg, house_cfg)
     scenario = drv.full_year()
     df = scenario.data
     r = couple(house, hp, scenario, heating_curve)
@@ -82,7 +100,7 @@ def collect_stats() -> dict:
     peak_el_kw = float(r["p_el_total_w"].max() / 1000)
     backup_hours = int((r["backup_w"] > 1).sum())
 
-    house_th_kwh = th_kwh  # same demand series
+    house_th_kwh = th_kwh
     house_peak_kw = float(r["demand_w"].max() / 1000)
 
     dhw_heat = dhw["heat_kwh"] if dhw else 0.0
@@ -110,8 +128,12 @@ def collect_stats() -> dict:
 
     hc = cfg["heating_curve"]
     return {
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-        "house_config": house_label,
+        "label": _house_label(house_cfg, slug),
+        "house_config": house_file,
+        "location": drv.settings.get("location_label")
+        or f"{drv.settings['latitude']:.3f}, {drv.settings['longitude']:.3f}",
+        "latitude": drv.settings["latitude"],
+        "longitude": drv.settings["longitude"],
         "weather": drv.source_label,
         "weather_year": drv.weather_year,
         "heat_pump": cfg["heat_pump"]["name"],
@@ -155,27 +177,70 @@ def collect_stats() -> dict:
     }
 
 
-def copy_assets() -> None:
-    ASSETS.mkdir(parents=True, exist_ok=True)
+def copy_house_assets(slug: str) -> None:
+    from house_model import OUTPUTS_ROOT
+
+    src_dir = OUTPUTS_ROOT / slug
+    dest_dir = ASSETS / slug
+    dest_dir.mkdir(parents=True, exist_ok=True)
     for filename, _ in PLOTS:
-        src = OUTPUT / filename
+        src = src_dir / filename
         if not src.exists():
             raise FileNotFoundError(f"Missing plot: {src} — run simulations first")
-        shutil.copy2(src, ASSETS / filename)
-        print(f"  copied {filename}")
+        shutil.copy2(src, dest_dir / filename)
+        print(f"  copied {slug}/{filename}")
+
+
+def build_sizing_comparison() -> None:
+    py = sys.executable
+    print("Running sizing comparison…")
+    subprocess.run([py, str(ROOT / "compare_sizing.py")], cwd=ROOT, check=True)
+    if not SIZING_SRC.exists():
+        raise FileNotFoundError(f"Missing {SIZING_SRC} after compare_sizing.py")
+    ASSETS.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(SIZING_SRC, SIZING_DEST)
+    print(f"  copied hp_sizing_comparison.png")
 
 
 def main() -> None:
+    from house_model import load_house_config
+
+    configs = discover_house_configs()
+    if not configs:
+        print("No house_config_*.toml files found.", file=sys.stderr)
+        sys.exit(1)
+
     DOCS.mkdir(exist_ok=True)
-    print("Running simulations…")
-    run_simulations()
-    print("Collecting stats…")
-    stats = collect_stats()
+    houses: dict[str, dict] = {}
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    for slug, house_file in configs:
+        print(f"\n=== {slug} ({house_file}) ===")
+        os.environ["HOUSE_CONFIG"] = house_file
+        env = os.environ.copy()
+        print("Running simulations…")
+        run_simulations(env)
+        print("Collecting stats…")
+        house_cfg = load_house_config()
+        stats = collect_stats(house_cfg, slug)
+        stats["generated_at"] = generated_at
+        houses[slug] = stats
+        print("Copying plots…")
+        copy_house_assets(slug)
+
+    build_sizing_comparison()
+
+    default = DEFAULT_HOUSE if DEFAULT_HOUSE in houses else next(iter(houses))
+    site_stats = {
+        "site_title": SITE_TITLE,
+        "default_house": default,
+        "generated_at": generated_at,
+        "sizing_comparison": "assets/hp_sizing_comparison.png",
+        "houses": houses,
+    }
     stats_path = DOCS / "stats.json"
-    stats_path.write_text(json.dumps(stats, indent=2) + "\n", encoding="utf-8")
-    print(f"  wrote {stats_path.relative_to(ROOT)}")
-    print("Copying plots…")
-    copy_assets()
+    stats_path.write_text(json.dumps(site_stats, indent=2) + "\n", encoding="utf-8")
+    print(f"\n  wrote {stats_path.relative_to(ROOT)} ({len(houses)} houses)")
     print(f"\nDone. Preview:\n  cd docs && python3 -m http.server 8000\n  → http://localhost:8000")
 
 

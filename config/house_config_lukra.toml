@@ -1,0 +1,204 @@
+# House configuration for Lukra / Tobi's house (1993, no cellar).
+# Source: source_data/tobis-haus.md
+#
+# Untergeschoss -> [[ground_floor.room]] (slab on ground; buffer = unheated zone below)
+# Obergeschoss  -> [[first_floor.room]]  (loses heat up through insulated ceiling into cold attic)
+#
+# exterior_wall_area_m2 = estimated gross outside-facing wall (length × 2.4 m); refine with plan.
+# window_area_m2        = from tobis-haus.md (doors with glazing counted as window area).
+# heater_nominal_power_w = panel output @ 55 °C flow (EN 442 Typ 22/33 lengths converted).
+#   Küche / Bäder: Fußbodenheizung im Rücklauf not modeled separately.
+#
+# Use via HOUSE_CONFIG, e.g.:
+#   HOUSE_CONFIG=house_config_lukra.toml .venv/bin/python run_simulation.py full_year
+
+[location]
+label = "Gifhorn, Niedersachsen"
+latitude = 52.489
+longitude = 10.546
+
+[building]
+footprint_length_m = 12.6   # Außenmaß laut tobis-haus.md
+footprint_width_m  = 11.0
+ceiling_height_m   = 2.4    # assumed (OG Drempel 90 cm not modeled separately)
+wall_area_fraction = 0.13
+
+[envelope]
+# 24 cm Poroton + 6 cm Kerndämmung + Verblender (~1993, nachträglich gedämmt)
+wall_u    = 0.40
+# EG Fenster/Türen Ug 0.6; Uw ≈ 1.0–1.2 with frame (OG teils älter — Durchschnitt)
+window_u  = 1.10
+floor_u   = 0.45   # keine Kellerdecke — Decke auf Erdreich / unbeheizte Zone
+ceiling_u = 0.25   # 14 cm Glaswolle oberste Geschossdecke → unbeheizter Dachboden
+
+[design]
+design_outdoor_temp_c = -12.0
+
+[operation]
+heating_season_start = "10-01"
+heating_season_end   = "05-15"
+
+[ventilation]
+air_changes_per_hour_open = 10.0
+air_changes_per_hour_baseline = 0.35   # Baujahr 1993, teils neue Fenster
+
+[hot_water]
+# ~11 m³/month gesamt (tobis-haus.md); profile still from default JSON until a
+# house-specific water_monthly file is wired up.
+hot_fraction_winter = 0.45
+hot_fraction_summer = 0.30
+summer_months = [5, 6, 7, 8, 9]
+cold_inlet_c = 10.0
+target_temp_c = 55.0
+dhw_flow_temp_c = 55.0
+
+[buffer.basement]
+# No cellar — buffer approximates cool ground / under-slab inertia
+outdoor_high_c = 18.0
+buffer_high_c  = 14.0
+outdoor_low_c  = -10.0
+buffer_low_c   = 8.0
+inertia_hours  = 72.0
+
+[buffer.attic]
+# Unbeheizter Dachboden
+outdoor_high_c = 18.0
+buffer_high_c  = 16.0
+outdoor_low_c  = -10.0
+buffer_low_c   = 2.0
+inertia_hours  = 8.0
+
+# ===== Erdgeschoss ==========================================================
+
+[[ground_floor.room]]
+name = "Küche"
+floor_area_m2 = 12.0
+room_temp_c = 20.0
+exterior_wall_area_m2 = 8.4          # est. one façade ~3.5 m
+window_area_m2 = 1.96                  # 1.4 × 1.4 m
+heater_nominal_power_w = 0.0           # FBH im Rücklauf only (not in model)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[ground_floor.room]]
+name = "Wohnzimmer"
+floor_area_m2 = 45.0
+room_temp_c = 21.0
+exterior_wall_area_m2 = 28.8          # est. corner room, two façades
+window_area_m2 = 11.35                 # 1.9×2.1 + 1.1×2.3 + 2.1×2.3 m²
+heater_nominal_power_w = 1247.0        # Typ 33 2.2 m + Typ 22 0.9 m @ 55 °C
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+airing_minutes_per_day = 15.0
+
+[[ground_floor.room]]
+name = "Flur (EG)"
+floor_area_m2 = 20.0
+room_temp_c = 20.0
+exterior_wall_area_m2 = 10.8          # est.; Haustürwand
+window_area_m2 = 4.14                  # Haustür 1.8×2.3 m (inkl. 0.6×2 m Glas)
+heater_nominal_power_w = 962.0         # Typ 22 1.0 × 1.0 m @ 55 °C
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[ground_floor.room]]
+name = "Büro"
+floor_area_m2 = 15.0
+room_temp_c = 21.0
+exterior_wall_area_m2 = 9.6
+window_area_m2 = 2.66                    # 1.9 × 1.4 m
+heater_nominal_power_w = 1040.0        # Typ 22 1.8 × 0.6 m
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[ground_floor.room]]
+name = "Waschküche"
+floor_area_m2 = 9.0
+room_temp_c = 20.0
+exterior_wall_area_m2 = 8.0
+window_area_m2 = 1.68                  # 1.2 × 1.4 m
+heater_nominal_power_w = 462.0         # Typ 22 0.8 × 0.6 m
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[ground_floor.room]]
+name = "Heizungsraum"
+floor_area_m2 = 5.0
+room_temp_c = 18.0
+exterior_wall_area_m2 = 4.8            # est.; Brandschutztür zur Garage
+window_area_m2 = 0.0
+heater_nominal_power_w = 0.0
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[ground_floor.room]]
+name = "Bad (EG)"
+floor_area_m2 = 7.0
+room_temp_c = 24.0
+exterior_wall_area_m2 = 7.2
+window_area_m2 = 1.44                    # 1.2 × 1.2 m
+heater_nominal_power_w = 347.0         # Typ 22 0.6 × 0.6 m (+ FBH Rücklauf)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+# ===== Obergeschoss (Dachschräge / Drempel vereinfacht) =====================
+
+[[first_floor.room]]
+name = "Flur (OG)"
+floor_area_m2 = 22.0
+room_temp_c = 20.0
+exterior_wall_area_m2 = 12.0
+window_area_m2 = 4.16                  # 1.4×1.4 + Terrassentür 1.0×2.2 m
+heater_nominal_power_w = 809.0       # Typ 22 1.4 × 0.6 m
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[first_floor.room]]
+name = "Bad (OG)"
+floor_area_m2 = 6.0
+room_temp_c = 24.0
+exterior_wall_area_m2 = 6.0
+window_area_m2 = 0.50                  # Dachfenster 1.0 × 0.5 m
+heater_nominal_power_w = 850.0         # Sprossenheizkörper 1.6 × 0.5 m (est.)
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[first_floor.room]]
+name = "Zimmer 1"
+floor_area_m2 = 13.0
+room_temp_c = 20.0
+exterior_wall_area_m2 = 9.6
+window_area_m2 = 1.96                  # 1.4 × 1.4 m
+heater_nominal_power_w = 809.0         # Typ 22 1.4 × 0.6 m
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[first_floor.room]]
+name = "Zimmer 2"
+floor_area_m2 = 13.0
+room_temp_c = 20.0
+exterior_wall_area_m2 = 9.6
+window_area_m2 = 1.96
+heater_nominal_power_w = 809.0
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[first_floor.room]]
+name = "Zimmer 3"
+floor_area_m2 = 15.0
+room_temp_c = 20.0
+exterior_wall_area_m2 = 10.8
+window_area_m2 = 2.64                  # 2 × 1.1 × 1.2 m
+heater_nominal_power_w = 1040.0        # Typ 22 1.8 × 0.6 m
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0
+
+[[first_floor.room]]
+name = "Zimmer 4"
+floor_area_m2 = 11.0
+room_temp_c = 20.0
+exterior_wall_area_m2 = 9.6
+window_area_m2 = 1.96
+heater_nominal_power_w = 694.0         # Typ 22 1.2 × 0.6 m
+heater_exponent = 1.30
+heater_rating_flow_c = 55.0

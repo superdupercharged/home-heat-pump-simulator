@@ -3,8 +3,9 @@
 Two data sources (selected via ``[weather]`` in ``config/config.toml``):
 
   - **Calendar year** (``year = 2023``): hourly 2 m air temperature from
-    Open-Meteo ERA5 archive for the configured lat/lon. Cached under
-    ``source_data/weather_{lat}_{lon}_{year}.csv`` after the first fetch.
+    Open-Meteo ERA5 archive for the lat/lon of the active house config
+    (``[location]`` in ``house_config_*.toml``, overridden via ``HOUSE_CONFIG``).
+    Cached under ``source_data/weather_{lat}_{lon}_{year}.csv`` after the first fetch.
   - **PVGIS TMY** (``year = 0``): stitched Typical Meteorological Year from
     ``source_data/tmy_48.351_10.164_2005_2023.csv``.
 
@@ -181,8 +182,12 @@ def load_calendar_year(latitude: float, longitude: float, year: int,
     return df
 
 
-def parse_weather_config(cfg: dict) -> dict:
-    """Return normalized weather settings from config.toml."""
+def parse_weather_config(cfg: dict, house_cfg: dict | None = None) -> dict:
+    """Return normalized weather settings from config.toml.
+
+    If *house_cfg* contains ``[location]``, its latitude/longitude override the
+    defaults in ``config.toml`` (so ``HOUSE_CONFIG`` selects the weather site).
+    """
     w = cfg.get("weather", {})
     wc = w.get("worst_case", {})
     year = w.get("year", 2023)
@@ -190,18 +195,35 @@ def parse_weather_config(cfg: dict) -> dict:
         year = 0
     lat = float(w.get("latitude", 48.351))
     lon = float(w.get("longitude", 10.164))
+    location_label = None
+    if house_cfg:
+        loc = house_cfg.get("location", {})
+        if "latitude" in loc:
+            lat = float(loc["latitude"])
+        if "longitude" in loc:
+            lon = float(loc["longitude"])
+        location_label = loc.get("label")
     wc_start = int(wc.get("year_start", 2005))
     wc_end = int(wc.get("year_end", 2023))
     return {
         "year": int(year),
         "latitude": lat,
         "longitude": lon,
+        "location_label": location_label,
         "tmy_path": Path(w.get("tmy_path", DEFAULT_TMY)),
         "worst_case_start": wc_start,
         "worst_case_end": wc_end,
         "worst_case_hdh_base_c": float(wc.get("hdh_base_c", 15.0)),
         "worst_case_spell_threshold_c": float(wc.get("spell_threshold_c", 0.0)),
     }
+
+
+def _location_note(settings: dict) -> str:
+    label = settings.get("location_label")
+    if label:
+        return f", {label}"
+    lat, lon = settings["latitude"], settings["longitude"]
+    return f" ({lat:.3f}, {lon:.3f})"
 
 
 def worst_case_cache_path(latitude: float, longitude: float,
@@ -429,14 +451,15 @@ class WeatherScenario:
 
 
 class WeatherDriver:
-    def __init__(self, cfg: dict | None = None):
-        settings = parse_weather_config(cfg or {})
+    def __init__(self, cfg: dict | None = None, house_cfg: dict | None = None):
+        settings = parse_weather_config(cfg or {}, house_cfg)
         self.settings = settings
         self.tmy_path = settings["tmy_path"]
         self.tmy_df = load_tmy(self.tmy_path)
         y0, y1 = settings["worst_case_start"], settings["worst_case_end"]
+        loc = _location_note(settings)
         self.worst_case_source_label = (
-            f"synthetic worst-case year ({y0}–{y1}, coldest month each)"
+            f"synthetic worst-case year ({y0}–{y1}, coldest month each{loc})"
         )
         self.worst_case_title_label = f"worst-case {y0}–{y1}"
         self._worst_case_df: pd.DataFrame | None = None
@@ -444,21 +467,21 @@ class WeatherDriver:
 
         year = settings["year"]
         if year == 0:
-            self.source_label = "PVGIS TMY (2005–2023 stitched months)"
+            self.source_label = f"PVGIS TMY (2005–2023 stitched months{loc})"
             self.title_label = "TMY"
             self.weather_year = None
             self.df = self.tmy_df
         else:
             self.weather_year = year
-            self.source_label = f"calendar year {year} (Open-Meteo ERA5)"
+            self.source_label = f"calendar year {year} (Open-Meteo ERA5{loc})"
             self.title_label = str(year)
             self.df = load_calendar_year(
                 settings["latitude"], settings["longitude"], year,
             )
 
     @classmethod
-    def from_config(cls, cfg: dict) -> "WeatherDriver":
-        return cls(cfg)
+    def from_config(cls, cfg: dict, house_cfg: dict | None = None) -> "WeatherDriver":
+        return cls(cfg, house_cfg)
 
     def full_year(self) -> WeatherScenario:
         """The full hourly outdoor temperature series."""
@@ -495,15 +518,19 @@ if __name__ == "__main__":
     import sys
 
     from home_heat_sim import load_config
+    from house_model import load_house_config
 
-    settings = parse_weather_config(load_config())
+    house_cfg = load_house_config()
+    settings = parse_weather_config(load_config(), house_cfg)
     if len(sys.argv) > 1 and sys.argv[1] == "fetch_history":
         y0, y1 = settings["worst_case_start"], settings["worst_case_end"]
         lat, lon = settings["latitude"], settings["longitude"]
+        loc = settings.get("location_label") or f"{lat}, {lon}"
         years = list(range(y0, y1 + 1))
         sim_year = settings["year"]
         if sim_year != 0:
             years.append(sim_year)
+        print(f"Location: {loc}")
         print(f"Fetching calendar years {y0}–{y1}"
               f"{f' (+ sim year {sim_year})' if sim_year != 0 else ''} …")
         ok, failed = fetch_weather_years(lat, lon, years)
@@ -525,7 +552,7 @@ if __name__ == "__main__":
         print("Cleared worst-case cache — re-run simulation to rebuild.")
         sys.exit(0)
 
-    drv = WeatherDriver.from_config(load_config())
+    drv = WeatherDriver.from_config(load_config(), house_cfg)
     yr = drv.full_year().data
     print(f"Weather source: {drv.source_label}")
     print(f"Loaded {len(yr)} hourly records "

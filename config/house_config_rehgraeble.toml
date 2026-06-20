@@ -17,6 +17,11 @@
 # Use this file instead of the default via the HOUSE_CONFIG env var, e.g.:
 #   HOUSE_CONFIG=house_config_rehgraeble.toml .venv/bin/python run_simulation.py
 
+[location]
+label = "Ulm area"
+latitude = 48.351
+longitude = 10.164
+
 [building]
 footprint_length_m = 13.72
 footprint_width_m  = 9.95

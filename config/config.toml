@@ -2,10 +2,12 @@
 # Edit these values to change the scenario, then run: .venv/bin/python home_heat_sim.py
 
 [weather]
-# Calendar year for hourly outdoor temps (Open-Meteo ERA5, lat/lon below).
-# Set to 0 to use the PVGIS Typical Meteorological Year instead.
+# Calendar year for hourly outdoor temps (Open-Meteo ERA5).
+# Lat/lon come from the active house config ([location] in house_config_*.toml);
+# the values below are only used when the house config has no [location] section.
+# Set year = 0 to use the PVGIS Typical Meteorological Year instead.
 year = 2022
-latitude = 48.351    # Ulm area (matches source_data/tmy_*.csv)
+latitude = 48.351    # fallback default (Ulm area)
 longitude = 10.164
 
 [weather.worst_case]
